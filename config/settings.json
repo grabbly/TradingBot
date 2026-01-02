@@ -1,0 +1,24 @@
+{
+  "alpaca": {
+    "paperBaseUrl": "https://paper-api.alpaca.markets",
+    "liveBaseUrl": "https://api.alpaca.markets",
+    "dataBaseUrl": "https://data.alpaca.markets",
+    "mode": "paper"
+  },
+  "strategy": {
+    "symbol": "NVDA",
+    "timeframe": "1Hour",
+    "emaShortPeriod": 5,
+    "emaLongPeriod": 20,
+    "confirmationPercent": 0.75,
+    "barsLimit": 50
+  },
+  "riskManagement": {
+    "stopLossPercent": 2.5,
+    "positionSize": 10,
+    "maxPositions": 1
+  },
+  "polling": {
+    "intervalSeconds": 60
+  }
+}

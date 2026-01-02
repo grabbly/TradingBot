@@ -1,0 +1,6 @@
+# Local env examples
+.env
+.env.local
+
+# Secrets
+.docs/alpaca.markets-api-keys.txt
