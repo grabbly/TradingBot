@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backtest EMA Strategy - Treddy</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #e0e0e0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        h1 {
+            color: #4fc3f7;
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #b0bec5;
+            font-size: 0.9em;
+        }
+
+        .nav-links {
+            margin-top: 15px;
+        }
+
+        .nav-links a {
+            color: #4fc3f7;
+            text-decoration: none;
+            margin-right: 20px;
+            padding: 8px 15px;
+            border-radius: 5px;
+            background: rgba(79, 195, 247, 0.1);
+            transition: all 0.3s;
+        }
+
+        .nav-links a:hover {
+            background: rgba(79, 195, 247, 0.2);
+        }
+
+        .form-section {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 25px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            color: #b0bec5;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 5px;
+            color: #e0e0e0;
+            font-size: 1em;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: #4fc3f7;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .symbol-input {
+            font-family: 'Courier New', monospace;
+            text-transform: uppercase;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 40px;
+            border: none;
+            border-radius: 5px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            font-weight: 600;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            background: #555;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        #results {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 25px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            margin-top: 20px;
+            display: none;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            display: none;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top: 4px solid #4fc3f7;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .info-box {
+            background: rgba(79, 195, 247, 0.1);
+            border-left: 4px solid #4fc3f7;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+
+        .info-box h3 {
+            color: #4fc3f7;
+            margin-bottom: 10px;
+        }
+
+        .info-box ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .info-box li {
+            padding: 5px 0;
+            color: #b0bec5;
+        }
+
+        .info-box li::before {
+            content: "→ ";
+            color: #4fc3f7;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📊 Backtest EMA Strategy</h1>
+            <p class="subtitle">Test your trading strategy on historical data</p>
+            <div class="nav-links">
+                <a href="/">← Back to Dashboard</a>
+                <a href="/health" target="_blank">Health Check</a>
+            </div>
+        </header>
+
+        <div class="info-box">
+            <h3>Strategy Parameters</h3>
+            <ul>
+                <li>EMA Short: 5 periods</li>
+                <li>EMA Long: 50 periods</li>
+                <li>Entry: When price confirms bullish crossover</li>
+                <li>Exit: On bearish crossover</li>
+            </ul>
+        </div>
+
+        <div class="form-section">
+            <h2 style="color: #4fc3f7; margin-bottom: 20px;">Backtest Configuration</h2>
+            
+            <div class="form-group">
+                <label for="symbols">Symbols (comma-separated, e.g., NVDA,AAPL,TSLA)</label>
+                <input type="text" id="symbols" class="symbol-input" value="NVDA,AAPL,TSLA" placeholder="NVDA,AAPL,TSLA">
+            </div>
+
+            <div class="grid">
+                <div class="form-group">
+                    <label for="capital">Initial Capital ($)</label>
+                    <input type="number" id="capital" value="10000" min="100" step="100">
+                </div>
+
+                <div class="form-group">
+                    <label for="commission">Commission (%)</label>
+                    <input type="number" id="commission" value="0.0" min="0" max="5" step="0.01">
+                </div>
+
+                <div class="form-group">
+                    <label for="position-size">Position Size (%)</label>
+                    <input type="number" id="position-size" value="100" min="1" max="100">
+                </div>
+
+                <div class="form-group">
+                    <label for="confirmation">Confirmation (%)</label>
+                    <input type="number" id="confirmation" value="0.75" min="0" max="5" step="0.01">
+                </div>
+            </div>
+
+            <div class="info-box" style="margin-top: 20px; background: rgba(76, 175, 80, 0.1); border-left-color: #4caf50;">
+                <h3 style="color: #4caf50; margin-bottom: 10px;">⏱️ Time Window</h3>
+                <p style="color: #b0bec5; font-size: 0.9em; margin-bottom: 15px;">
+                    Select the exact time range for backtesting (e.g., Friday 4pm-10pm).
+                </p>
+                <div class="grid">
+                    <div class="form-group">
+                        <label for="start-time">Start Time *</label>
+                        <input type="datetime-local" id="start-time" style="width: 100%;" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="window-hours">Duration (hours) *</label>
+                        <input type="number" id="window-hours" value="24" min="1" max="168" placeholder="Hours" required>
+                    </div>
+                </div>
+            </div>
+                </div>
+            </div>
+
+            <button onclick="runBacktest()" id="runBtn">🚀 Run Backtest</button>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Running backtest... This may take a minute.</p>
+        </div>
+
+        <div id="results"></div>
+    </div>
+
+    <script>
+        async function runBacktest() {
+            const symbolsInput = document.getElementById('symbols').value.trim();
+            const symbols = symbolsInput.split(',').map(s => s.trim().toUpperCase()).filter(s => s);
+            
+            if (symbols.length === 0) {
+                alert('Please enter at least one symbol');
+                return;
+            }
+
+            const capital = parseFloat(document.getElementById('capital').value);
+            const commission = parseFloat(document.getElementById('commission').value);
+            const positionSize = parseFloat(document.getElementById('position-size').value);
+            const confirmation = parseFloat(document.getElementById('confirmation').value);
+            
+            // Get time window parameters (required)
+            const startTime = document.getElementById('start-time').value;
+            const windowHours = document.getElementById('window-hours').value;
+
+            if (!startTime || !windowHours) {
+                alert('Please specify Start Time and Duration');
+                return;
+            }
+
+            const runBtn = document.getElementById('runBtn');
+            const loading = document.getElementById('loading');
+            const results = document.getElementById('results');
+
+            runBtn.disabled = true;
+            loading.style.display = 'block';
+            results.style.display = 'none';
+
+            const requestBody = {
+                symbols: symbols,
+                capital: capital,
+                commission: commission,
+                position_size: positionSize,
+                confirmation: confirmation,
+                start_time: new Date(startTime).toISOString(),
+                window_hours: parseInt(windowHours)
+            };
+
+            try {
+                const response = await fetch('/api/backtest', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    results.textContent = data.output;
+                    results.style.display = 'block';
+                    results.scrollTop = 0;
+                } else {
+                    results.textContent = 'Error: ' + data.message;
+                    results.style.display = 'block';
+                }
+            } catch (error) {
+                results.textContent = 'Error: ' + error.message;
+                results.style.display = 'block';
+            } finally {
+                runBtn.disabled = false;
+                loading.style.display = 'none';
+            }
+        }
+
+        // Allow Enter key in form
+        document.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && e.target.tagName !== 'BUTTON') {
+                runBacktest();
+            }
+        });
+
+        // Set default start time to 24 hours ago
+        window.addEventListener('DOMContentLoaded', function() {
+            const now = new Date();
+            now.setHours(now.getHours() - 24);
+            
+            // Format to YYYY-MM-DDTHH:mm (datetime-local format)
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            
+            const defaultDateTime = `${year}-${month}-${day}T${hours}:${minutes}`;
+            document.getElementById('start-time').value = defaultDateTime;
+        });
+    </script>
+</body>
+</html>

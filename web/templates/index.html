@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Treddy - EMA Trading Bot Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .nav-links {
+            margin-bottom: 20px;
+        }
+        .nav-links a {
+            color: #38bdf8;
+            text-decoration: none;
+            padding: 10px 20px;
+            background: rgba(56, 189, 248, 0.1);
+            border-radius: 5px;
+            margin-right: 10px;
+            display: inline-block;
+        }
+        .nav-links a:hover {
+            background: rgba(56, 189, 248, 0.2);
+        }
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 10px;
+            color: #38bdf8;
+        }
+        .subtitle {
+            color: #94a3b8;
+            margin-bottom: 30px;
+        }
+        .controls {
+            background: #1e293b;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        .control-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        label {
+            font-size: 0.9rem;
+            color: #94a3b8;
+        }
+        input, select, button {
+            padding: 8px 12px;
+            border: 1px solid #334155;
+            border-radius: 4px;
+            background: #0f172a;
+            color: #e2e8f0;
+            font-size: 0.9rem;
+        }
+        button {
+            background: #38bdf8;
+            color: #0f172a;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+        }
+        button:hover {
+            background: #0ea5e9;
+        }
+        button:disabled {
+            background: #334155;
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+        .zoom-controls {
+            margin-top: 15px;
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .zoom-controls button {
+            padding: 8px 16px;
+            font-size: 0.9rem;
+        }
+        .zoom-controls input[type="datetime-local"],
+        .zoom-controls input[type="number"] {
+            padding: 8px 12px;
+            font-size: 0.9rem;
+        }
+        .zoom-info {
+            color: #94a3b8;
+            font-size: 0.85rem;
+            margin: 0 10px;
+        }
+        .time-control-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .time-control-group label {
+            font-size: 0.85rem;
+            color: #94a3b8;
+        }
+        .chart-container {
+            background: #1e293b;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .chart-container img {
+            width: 100%;
+            height: auto;
+            border-radius: 4px;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: #1e293b;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 3px solid #38bdf8;
+        }
+        .stat-label {
+            font-size: 0.8rem;
+            color: #94a3b8;
+            margin-bottom: 5px;
+        }
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #e2e8f0;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #94a3b8;
+        }
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #334155;
+            color: #64748b;
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 Treddy Dashboard</h1>
+        <p class="subtitle">EMA Crossover Trading Bot - Real-time Visualization</p>
+        
+        <div class="nav-links">
+            <a href="/backtest">🔬 Backtest Strategy</a>
+            <a href="/health">💚 Health Check</a>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="symbol">Symbol:</label>
+                <input type="text" id="symbol" value="NVDA" placeholder="NVDA">
+            </div>
+            <div class="control-group">
+                <label for="days">Days:</label>
+                <select id="days" onchange="resetZoom()">
+                    <option value="1" selected>1 day</option>
+                    <option value="3">3 days</option>
+                    <option value="7">7 days</option>
+                    <option value="14">14 days</option>
+                    <option value="30">30 days</option>
+                </select>
+            </div>
+            <button onclick="loadChart()">Update Chart</button>
+            <button onclick="autoRefresh()">Auto Refresh (60s)</button>
+        </div>
+
+        <div class="zoom-controls">
+            <div class="time-control-group">
+                <label for="startTime">Start Time:</label>
+                <input type="datetime-local" id="startTime" />
+            </div>
+            <div class="time-control-group">
+                <label for="windowHours">Hours:</label>
+                <input type="number" id="windowHours" min="1" max="24" value="8" style="width: 80px;" />
+            </div>
+            <button onclick="applyTimeWindow()">Apply Window</button>
+            <button onclick="resetToLive()">Reset to Live</button>
+        </div>
+
+        <div class="stats" id="stats">
+            <div class="stat-card">
+                <div class="stat-label">Data Points</div>
+                <div class="stat-value" id="dataPoints">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Latest Price</div>
+                <div class="stat-value" id="latestPrice">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Current Signal</div>
+                <div class="stat-value" id="currentSignal">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Last Update</div>
+                <div class="stat-value" id="lastUpdate">-</div>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <img id="chart" src="/chart/NVDA.png?days=1" alt="EMA Chart">
+        </div>
+
+        <footer>
+            Treddy EMA Bot · Powered by Alpaca Markets API · Data stored in PostgreSQL
+        </footer>
+    </div>
+
+    <script>
+        let autoRefreshInterval = null;
+
+        function loadChart() {
+            const symbol = document.getElementById('symbol').value || 'NVDA';
+            const days = document.getElementById('days').value;
+            const chartImg = document.getElementById('chart');
+            
+            // Add timestamp to prevent caching
+            const timestamp = new Date().getTime();
+            const url = `/chart/${symbol}.png?days=${days}&t=${timestamp}`;
+            chartImg.src = url;
+            
+            // Load stats
+            fetch(`/api/data/${symbol}?days=${days}`)
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById('dataPoints').textContent = data.length;
+                    if (data.length > 0) {
+                        const latest = data[data.length - 1];
+                        document.getElementById('latestPrice').textContent = 
+                            latest.close ? `$${latest.close.toFixed(2)}` : '-';
+                        document.getElementById('currentSignal').textContent = 
+                            latest.action || 'hold';
+                        document.getElementById('lastUpdate').textContent = 
+                            new Date(latest.timestamp).toLocaleString();
+                    }
+                })
+                .catch(err => console.error('Error loading stats:', err));
+        }
+
+        function autoRefresh() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+                alert('Auto-refresh disabled');
+            } else {
+                autoRefreshInterval = setInterval(loadChart, 60000);
+                alert('Auto-refresh enabled (every 60 seconds)');
+                loadChart();
+            }
+        }
+
+        function applyTimeWindow() {
+            const symbol = document.getElementById('symbol').value || 'NVDA';
+            const startTime = document.getElementById('startTime').value;
+            const hours = document.getElementById('windowHours').value;
+            
+            if (!startTime) {
+                alert('Please select a start time');
+                return;
+            }
+            
+            const chartImg = document.getElementById('chart');
+            const timestamp = new Date().getTime();
+            
+            // Convert to ISO format for backend
+            const startTimeISO = new Date(startTime).toISOString();
+            const url = `/chart/${symbol}.png?hours=${hours}&start_time=${startTimeISO}&t=${timestamp}`;
+            
+            chartImg.src = url;
+        }
+
+        function resetToLive() {
+            document.getElementById('startTime').value = '';
+            document.getElementById('windowHours').value = '8';
+            loadChart();
+        }
+
+        function resetZoom() {
+            resetToLive();
+        }
+
+        // Set default start time to 24 hours ago
+        function setDefaultStartTime() {
+            const now = new Date();
+            now.setHours(now.getHours() - 24);
+            const localDateTime = now.toISOString().slice(0, 16);
+            document.getElementById('startTime').value = localDateTime;
+        }
+
+        // Load chart on page load
+        window.addEventListener('load', function() {
+            setDefaultStartTime();
+            loadChart();
+        });
+    </script>
+</body>
+</html>

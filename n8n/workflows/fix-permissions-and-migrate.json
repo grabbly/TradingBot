@@ -1,0 +1,134 @@
+{
+  "name": "Fix Permissions & Apply Migration",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [-200, 240]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT current_user, session_user;",
+        "options": {}
+      },
+      "id": "check-user",
+      "name": "Check Current User",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [0, 240],
+      "credentials": {
+        "postgres": {
+          "id": "Cg19dKBPWwzZgtn2",
+          "name": "PostgreSQL Trading"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO current_user; GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO current_user;",
+        "options": {}
+      },
+      "id": "grant-permissions",
+      "name": "Grant Permissions",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [200, 240],
+      "credentials": {
+        "postgres": {
+          "id": "Cg19dKBPWwzZgtn2",
+          "name": "PostgreSQL Trading"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "CREATE TABLE IF NOT EXISTS schema_migrations (id SERIAL PRIMARY KEY, version VARCHAR(50) NOT NULL UNIQUE, name VARCHAR(255) NOT NULL, applied_at TIMESTAMPTZ DEFAULT NOW());",
+        "options": {}
+      },
+      "id": "create-table",
+      "name": "Create Migrations Table",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [400, 240],
+      "credentials": {
+        "postgres": {
+          "id": "Cg19dKBPWwzZgtn2",
+          "name": "PostgreSQL Trading"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "ALTER TABLE ema_snapshots ADD COLUMN IF NOT EXISTS ema8 DECIMAL(12,4), ADD COLUMN IF NOT EXISTS ema9 DECIMAL(12,4), ADD COLUMN IF NOT EXISTS ema13 DECIMAL(12,4), ADD COLUMN IF NOT EXISTS ema21 DECIMAL(12,4), ADD COLUMN IF NOT EXISTS ema34 DECIMAL(12,4), ADD COLUMN IF NOT EXISTS ema50 DECIMAL(12,4), ADD COLUMN IF NOT EXISTS ema100 DECIMAL(12,4), ADD COLUMN IF NOT EXISTS ema200 DECIMAL(12,4);",
+        "options": {}
+      },
+      "id": "alter-snapshots",
+      "name": "Alter ema_snapshots",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [600, 240],
+      "credentials": {
+        "postgres": {
+          "id": "Cg19dKBPWwzZgtn2",
+          "name": "PostgreSQL Trading"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "ALTER TABLE trades ADD COLUMN IF NOT EXISTS ema8 DECIMAL(12,4), ADD COLUMN IF NOT EXISTS ema9 DECIMAL(12,4), ADD COLUMN IF NOT EXISTS ema13 DECIMAL(12,4), ADD COLUMN IF NOT EXISTS ema21 DECIMAL(12,4), ADD COLUMN IF NOT EXISTS ema34 DECIMAL(12,4), ADD COLUMN IF NOT EXISTS ema50 DECIMAL(12,4), ADD COLUMN IF NOT EXISTS ema100 DECIMAL(12,4), ADD COLUMN IF NOT EXISTS ema200 DECIMAL(12,4);",
+        "options": {}
+      },
+      "id": "alter-trades",
+      "name": "Alter trades",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [800, 240],
+      "credentials": {
+        "postgres": {
+          "id": "Cg19dKBPWwzZgtn2",
+          "name": "PostgreSQL Trading"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO schema_migrations (version, name) VALUES ('001', 'add_ema_columns') ON CONFLICT (version) DO NOTHING;",
+        "options": {}
+      },
+      "id": "register",
+      "name": "Register Migration",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1000, 240],
+      "credentials": {
+        "postgres": {
+          "id": "Cg19dKBPWwzZgtn2",
+          "name": "PostgreSQL Trading"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {"main": [[{"node": "Check Current User", "type": "main", "index": 0}]]},
+    "Check Current User": {"main": [[{"node": "Grant Permissions", "type": "main", "index": 0}]]},
+    "Grant Permissions": {"main": [[{"node": "Create Migrations Table", "type": "main", "index": 0}]]},
+    "Create Migrations Table": {"main": [[{"node": "Alter ema_snapshots", "type": "main", "index": 0}]]},
+    "Alter ema_snapshots": {"main": [[{"node": "Alter trades", "type": "main", "index": 0}]]},
+    "Alter trades": {"main": [[{"node": "Register Migration", "type": "main", "index": 0}]]}
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "761f1737ead169f86632b637ef0da6362172a07a6a3e5de45f80125c04107994"
+  }
+}

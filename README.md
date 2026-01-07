@@ -19,10 +19,17 @@ TradingBot/
 │   ├── ema.js              # Расчёт EMA
 │   └── signals.js          # Логика сигналов
 ├── db/
-│   └── schema.sql          # Схема PostgreSQL
+│   ├── schema.sql          # Схема PostgreSQL
+│   ├── migrations/         # Миграции БД
+│   │   ├── 000_init_schema_migrations.sql
+│   │   └── 001_add_ema_columns.sql
+│   ├── apply_migrations.sh # Скрипт применения миграций
+│   └── MIGRATIONS.md       # Руководство по миграциям
 ├── n8n/
 │   ├── workflows/
-│   │   └── ema-crossover-bot.json
+│   │   ├── ema-crossover-bot.json
+│   │   ├── ema-logger.json
+│   │   └── db-migrate.json    # Workflow для миграций
 │   └── CREDENTIALS_SETUP.md
 └── .docs/
     └── task.txt            # Спецификация
@@ -67,6 +74,20 @@ TradingBot/
 
 - **Telegram**: Алерты о сигналах и сделках
 - **PostgreSQL**: Лог всех событий + статистика
+
+## 🗄️ Миграции базы данных
+
+Проект использует систему миграций для управления схемой БД:
+
+```bash
+# Применить все миграции через скрипт
+./db/apply_migrations.sh
+
+# Или через n8n workflow
+# Импортируй db-migrate.json и запусти вручную
+```
+
+Подробнее: [db/MIGRATIONS.md](db/MIGRATIONS.md)
 
 ## ⚠️ Важно
 
