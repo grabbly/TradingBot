@@ -1,8 +1,16 @@
-# v2.0 Upgrade Tasks - Actionable Checklist
+# v1.x Incremental Updates - Actionable Checklist
 
 **Created:** 2026-01-07  
+**Approach:** Incremental updates v1.0 → v1.1 → v1.2 ... (test after each phase)  
 **Sprint:** 8 weeks (Feb 2026)  
 **Starting Capital:** $1,000 (paper → $500 real → $1,000 full)
+
+**Strategy:** 
+- Each Phase = One version increment (v1.1, v1.2, v1.3, v1.4, v1.5)
+- Update existing workflows in-place (backup before changes)
+- Paper test after each phase (1-3 days)
+- Git branches for safe rollback
+- Keep v1.0 running until v1.5 validated
 
 ---
 
@@ -11,11 +19,22 @@
 - [ ] Confirm Alpaca Paper Trading account active
 - [ ] Verify PostgreSQL connection from Mac
 - [ ] Check current v1.0 running status (is it live?)
-- [ ] Backup current database: `pg_dump trading_bot > backup_v1_20260107.sql`
-- [ ] Clone strategy_v1 → strategy_v2 folder structure
-- [ ] Setup dev environment: Python venv with dependencies
+- [ ] Backup current database: `pg_dump trading_bot > backup_v1.0_20260107.sql`
+- [ ] Backup workflows: `cp -r strategy_v1/workflows strategy_v1/workflows_v1.0_backup`
+- [ ] Create git branch: `git checkout -b upgrade/phase1-validation`
+- [ ] Setup Python venv: `python3 -m venv venv && source venv/bin/activate`
+- [ ] Install dependencies: `pip install -r requirements.txt`
+- [ ] Document v1.0 baseline metrics (if running)
 
 **Time:** 2 hours
+
+**Git Workflow:**
+- main branch = stable production (currently v1.0)
+- upgrade/phase1-validation → test → merge to main → tag v1.1
+- upgrade/phase2-sentiment → test → merge to main → tag v1.2
+- And so on...
+
+**Rollback Plan:** If any phase fails, revert: `git reset --hard v1.0` + restore DB backup
 
 ---
 
@@ -61,7 +80,10 @@
   - **Time:** 2 hours
 
 **Total Phase 1.1:** 15-19 hours (2 days)  
-**Deliverable:** `reports/backtest_v1_results_20260107.md`
+**Deliverable:** 
+- `reports/backtest_v1_results_20260107.md`
+- Decision document: GO/NO-GO for Phase 2
+- Git tag: `v1.0-validated` (baseline confirmed)
 
 ---
 
@@ -133,6 +155,24 @@
 
 ---
 
+### 🧪 Phase 1 Testing Period
+
+**Duration:** 1 day  
+**Goal:** Review backtest results, make GO/NO-GO decision
+
+**Decision Criteria:**
+- [ ] Backtest Sharpe > 0.5 → GO to Phase 2
+- [ ] Backtest Sharpe < 0.5 → STOP and pivot strategy
+- [ ] Cost analysis confirms need for FinBERT
+
+**Actions:**
+- [ ] Review all Phase 1 reports
+- [ ] Commit Phase 1 work: `git checkout main && git merge upgrade/phase1-validation`
+- [ ] Tag: `git tag v1.0-validated && git push --tags`
+- [ ] If GO: Create branch for Phase 2: `git checkout -b upgrade/phase2-sentiment`
+
+---
+
 ## 🧠 Phase 2: Sentiment Upgrade (Weeks 3-4)
 
 ### Task 2.1: Replace GPT-4 with FinBERT
@@ -177,8 +217,12 @@
   - **Time:** 30 min
 
 **Total Phase 2.1:** 9.5 hours (1.5 days)  
-**Deliverable:** `strategy_v2/workflows/sentiment-analysis-v2.json`  
-**Question:** Use free tier or paid? Start free, upgrade if rate limited?
+**Deliverable:** 
+- Updated `strategy_v1/workflows/sentiment-analysis.json` (replace GPT-4 with FinBERT)
+- Keep backup: `strategy_v1/workflows/sentiment-analysis_v1.0_gpt4.json`
+- Cost comparison report
+
+**Note:** Use free tier, upgrade if rate limited
 
 ---
 
@@ -259,8 +303,9 @@
 
 **Total Phase 2.2:** 11.75 hours (1.5 days)  
 **Deliverable:** 
-- `strategy_v2/workflows/sentiment-aggregator-v2.json`
-- `db/schema_v2_sentiment_sources.sql`
+- New workflow: `strategy_v1/workflows/sentiment-aggregator.json`
+- Database migration: `db/migrations/002_add_sentiment_sources.sql`
+- Updated schema documentation
 
 **Decision:** Focus on NewsAPI + Reddit only, defer social media to later
 
@@ -295,7 +340,9 @@
   - **Time:** 2 hours
 
 **Total Phase 2.3:** 5.5 hours  
-**Deliverable:** Updated `sentiment-executor-v2.json`
+**Deliverable:** 
+- Updated `strategy_v1/workflows/sentiment-executor.json` (use MA3 sentiment)
+- Backtest comparison: raw vs. smoothed sentiment
 
 ---
 
@@ -325,6 +372,31 @@
 
 **Total Phase 2.4:** 4 hours  
 **Deliverable:** Robust workflows with error handling
+
+---
+
+### 🧪 Phase 2 Testing & v1.1 Release
+
+**Duration:** 2-3 days paper trading  
+**Version:** v1.1 (Sentiment Upgrade)
+
+**Testing Checklist:**
+- [ ] FinBERT API working (check HF dashboard for usage)
+- [ ] Reddit integration stable (no auth failures)
+- [ ] Sentiment aggregation producing scores
+- [ ] MA3 smoothing reducing top-4 churn
+- [ ] Cost < $10/month verified
+- [ ] Error handling tested (simulate API failure)
+
+**Release Actions:**
+- [ ] Run paper trading for 2-3 days
+- [ ] Compare v1.0 vs v1.1 sentiment quality
+- [ ] If stable: Merge to main: `git checkout main && git merge upgrade/phase2-sentiment`
+- [ ] Tag: `git tag v1.1 -m "Sentiment upgrade: FinBERT + Reddit + MA3 smoothing"`
+- [ ] Push: `git push origin main --tags`
+- [ ] Create Phase 3 branch: `git checkout -b upgrade/phase3-technical`
+
+**Rollback:** If v1.1 unstable, restore v1.0 workflows from backup
 
 ---
 
@@ -450,6 +522,33 @@
 
 **Total Phase 3.4:** 4.5 hours  
 **Deliverable:** Event-aware executor
+
+---
+
+### 🧪 Phase 3 Testing & v1.2 Release
+
+**Duration:** 3-5 days paper trading  
+**Version:** v1.2 (Technical Analysis Integration)
+
+**Testing Checklist:**
+- [ ] EMA calculations accurate (spot-check against TradingView)
+- [ ] Only trades above EMA200 (verify filter working)
+- [ ] EMA 9/21 crossovers detected correctly
+- [ ] RSI < 70 filter active
+- [ ] Volume filter preventing low-volume entries
+- [ ] Earnings/FOMC skip logic working
+- [ ] Backtest Sharpe > 0.8 achieved
+
+**Release Actions:**
+- [ ] Run paper trading for 3-5 days
+- [ ] Monitor: false positives reduced, drawdown improved
+- [ ] Compare v1.1 vs v1.2 win rate
+- [ ] Merge: `git checkout main && git merge upgrade/phase3-technical`
+- [ ] Tag: `git tag v1.2 -m "Technical analysis: EMA filters + RSI + Volume + Events"`
+- [ ] Push: `git push origin main --tags`
+- [ ] Create Phase 4 branch: `git checkout -b upgrade/phase4-risk`
+
+**Rollback:** If too many false negatives (missing opportunities), dial back filters
 
 ---
 
@@ -609,6 +708,40 @@
 
 ---
 
+### 🧪 Phase 4 Testing & v1.3 Release
+
+**Duration:** 5-7 days paper trading (CRITICAL - risk management must work!)  
+**Version:** v1.3 (Risk Management Overhaul)
+
+**Testing Checklist:**
+- [ ] Position sizing = 1% risk per trade (verify calculation)
+- [ ] ATR calculated correctly for all symbols
+- [ ] Every order has SL/TP (bracket orders working)
+- [ ] SL triggers correctly (simulate price drop)
+- [ ] TP triggers correctly (simulate price rise)
+- [ ] Fractional shares working (test with small notional)
+- [ ] Drawdown limit triggers at 10% (test with simulated losses)
+- [ ] Sector diversification: max 2 per sector
+- [ ] Portfolio correlation < 0.6
+
+**Critical Tests:**
+- [ ] Place real paper order with bracket (verify SL/TP created)
+- [ ] Test position sizing with different account balances
+- [ ] Verify ATR adapts to volatility (low vs high vol stocks)
+
+**Release Actions:**
+- [ ] Run paper trading for 5-7 days (NO SHORTCUTS)
+- [ ] Document all triggered SL/TP
+- [ ] Verify no position exceeds 1% risk
+- [ ] Merge: `git checkout main && git merge upgrade/phase4-risk`
+- [ ] Tag: `git tag v1.3 -m "Risk management: 1% risk + ATR-based SL/TP + diversification"`
+- [ ] Push: `git push origin main --tags`
+- [ ] Create Phase 5 branch: `git checkout -b upgrade/phase5-operations`
+
+**Rollback:** If bracket orders fail or SL not triggering, STOP and debug before continuing
+
+---
+
 ## 🎛️ Phase 5: Operational Excellence (Week 8)
 
 ### Task 5.1: Real-Time Dashboard
@@ -728,9 +861,40 @@
 
 ---
 
-## 🚀 Phase 6: ML & Optimization (Optional - Month 3+)
+### 🧪 Phase 5 Testing & v1.4 Release
 
-**Note:** Only if v2.0 shows consistent profit for 3+ months
+**Duration:** 2-3 days testing + monitoring  
+**Version:** v1.4 (Operational Excellence)
+
+**Testing Checklist:**
+- [ ] Dashboard loading at http://treddy.acebox.eu
+- [ ] All metrics displaying correctly
+- [ ] Equity curve updating in real-time
+- [ ] Telegram alerts working (test by triggering conditions)
+- [ ] A/B test framework comparing v1.3 vs v1.4
+- [ ] Automated backtest running on Sunday
+- [ ] Weekly report received
+
+**Release Actions:**
+- [ ] Test dashboard for 2-3 days
+- [ ] Verify all alerts trigger correctly
+- [ ] Merge: `git checkout main && git merge upgrade/phase5-operations`
+- [ ] Tag: `git tag v1.4 -m "Operations: Dashboard + Alerts + A/B testing + Auto-backtest"`
+- [ ] Push: `git push origin main --tags`
+
+**v1.4 = Feature Complete!**
+- [ ] Begin 4-week paper trading validation
+- [ ] Weekly reviews of performance
+- [ ] If Sharpe > 0.8 and stable → Deploy $500 real capital
+
+---
+
+## 🚀 Phase 6: ML & Optimization (Optional - v1.5+ after Month 3+)
+
+**Note:** Only if v1.4 shows consistent profit for 3+ months with real capital
+
+**Version:** v1.5+ (ML enhancements)
+**Branch:** `git checkout -b upgrade/phase6-ml`
 
 ### Task 6.1: Custom Sentiment Model (Advanced)
 
@@ -767,22 +931,37 @@
 
 ## 📅 Timeline Summary
 
-| Week | Phase | Hours | Status |
-|------|-------|-------|--------|
-| 1-2 | Phase 1: Validation | 20-24h | 🔴 Not Started |
-| 3-4 | Phase 2: Sentiment | 28-32h | 🔴 Not Started |
-| 5-6 | Phase 3: Technical | 29-30h | 🔴 Not Started |
-| 7 | Phase 4: Risk Mgmt | 22-23h | 🔴 Not Started |
-| 8 | Phase 5: Operations | 27h | 🔴 Not Started |
-| 9+ | Phase 6: ML (opt) | 80h+ | 🔴 Future |
+| Week | Phase | Version | Hours | Testing | Status |
+|------|-------|---------|-------|---------|--------|
+| 1-2 | Phase 1: Validation | v1.0-validated | 20-24h | 1 day | 🔴 Not Started |
+| 3-4 | Phase 2: Sentiment | v1.1 | 28-32h | 2-3 days | 🔴 Not Started |
+| 5-6 | Phase 3: Technical | v1.2 | 29-30h | 3-5 days | 🔴 Not Started |
+| 7 | Phase 4: Risk Mgmt | v1.3 | 22-23h | 5-7 days | 🔴 Not Started |
+| 8 | Phase 5: Operations | v1.4 | 27h | 2-3 days | 🔴 Not Started |
+| 9-12 | v1.4 Paper Validation | - | - | 4 weeks | 🔴 Future |
+| 13+ | Phase 6: ML (opt) | v1.5+ | 80h+ | Ongoing | 🔴 Future |
 
-**Total Core v2.0:** 126-136 hours (~4-5 hours/day for 8 weeks)
+**Total Core Development:** 126-136 hours (~4-5 hours/day for 8 weeks)  
+**Total Testing:** 13-19 days paper trading across all phases  
+**Final Validation:** 4 weeks paper trading v1.4 before real capital
+
 **Savings from decisions:** 6-7 hours (removed Twitter, StockTwits; optimized tasks)
+
+**Git Tags Timeline:**
+- v1.0 → v1.0-validated → v1.1 → v1.2 → v1.3 → v1.4 → (4 weeks) → $500 real capital
 
 ---
 
 ## ✅ Decisions Made (2026-01-07)
 
+**Strategy:**
+- ✅ **Incremental updates** instead of big-bang v2.0 release
+- ✅ Update v1 in-place with version tags (v1.1, v1.2, v1.3, v1.4)
+- ✅ Paper test after each phase before moving to next
+- ✅ Git branches for safe rollback
+- ✅ Keep v1.0 running until v1.4 fully validated
+
+**Technical:**
 1. **Task 1.1.2:** ✅ Use FinBERT for historical sentiment backtest (not random)
 2. **Task 2.1.1:** ✅ ProsusAI/finbert (classical model)
 3. **Task 2.2.2:** ✅ Skip Twitter/X - tight budget, focus on NewsAPI, or limit to 5-10 stocks
@@ -790,7 +969,10 @@
 5. **Task 4.2.2:** ✅ ATR-based adaptive SL (better for volatile tech stocks)
 6. **Task 5.1.1:** ✅ Simple informative dashboard in Treddy Flask app
 
-**Next Actions:** Create strategy_v2/ folder, start Phase 1
+**Next Actions:** 
+1. Complete Pre-Flight Checklist
+2. Create git branch: `upgrade/phase1-validation`
+3. Start Phase 1: Backtest validation
 
 ---
 
@@ -826,11 +1008,14 @@
 
 ## 📝 Next Immediate Actions
 
-1. [ ] Answer open questions above
-2. [ ] Create `strategy_v2/` folder structure
-3. [ ] Setup Python venv with dependencies
-4. [ ] Start Task 1.1.1: Fetch historical data
-5. [ ] Commit this task list to git
+1. [x] ~~Answer open questions~~ DONE - all 6 decisions made
+2. [x] ~~Update approach to incremental~~ DONE
+3. [ ] Complete Pre-Flight Checklist (2 hours)
+4. [ ] Create git branch: `git checkout -b upgrade/phase1-validation`
+5. [ ] Setup Python venv: `python3 -m venv venv && source venv/bin/activate`
+6. [ ] Start Task 1.1.1: Fetch historical data
+7. [ ] Commit progress regularly
 
 **Start Date:** 2026-01-08 (tomorrow)  
-**First Milestone:** Phase 1 complete by 2026-01-22
+**First Milestone:** Phase 1 complete + v1.0-validated tag by 2026-01-22  
+**Final Goal:** v1.4 stable and paper trading by end of Week 8
