@@ -1,0 +1,255 @@
+{
+  "name": "News Collector",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "hoursInterval": 4
+            }
+          ]
+        }
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "name": "Every 4 Hours",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -880,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT symbol, name FROM tracked_symbols WHERE active = true ORDER BY symbol"
+      },
+      "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+      "name": "Get Active Symbols",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        -656,
+        240
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "postgres_trading_bot",
+          "name": "PostgreSQL trading_bot"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+      "name": "Loop Over Symbols",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -432,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://eodhd.com/api/news",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "s",
+              "value": "={{ $json.symbol }}.US"
+            },
+            {
+              "name": "offset",
+              "value": "0"
+            },
+            {
+              "name": "limit",
+              "value": "10"
+            },
+            {
+              "name": "fmt",
+              "value": "json"
+            }
+          ]
+        }
+      },
+      "id": "d4e5f6a7-b8c9-0123-def1-234567890123",
+      "name": "Fetch News from EODHD",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -208,
+        240
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "1h1lwVLnfkYUuNNH",
+          "name": "Query Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "notEmpty"
+              }
+            }
+          ]
+        }
+      },
+      "id": "e5f6a7b8-c9d0-1234-ef12-345678901234",
+      "name": "If Has Articles",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        16,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract articles and prepare for database insert\nconst articles = $input.all();\nconst symbol = $('Loop Over Symbols').item.json.symbol;\n\nconst result = articles.map(item => {\n  const article = item.json;\n  \n  // Generate article_id from URL or combination of fields\n  const articleId = article.link \n    ? article.link.split('/').pop() \n    : `${article.date}_${article.title.substring(0, 50).replace(/[^a-zA-Z0-9]/g, '_')}`;\n  \n  return {\n    json: {\n      article_id: articleId,\n      symbol: symbol,\n      title: article.title || '',\n      content: article.content || article.description || '',\n      url: article.link || '',\n      published_at: article.date || new Date().toISOString(),\n      source: article.source || 'EODHD'\n    }\n  };\n});\n\nreturn result;"
+      },
+      "id": "f6a7b8c9-d0e1-2345-f123-456789012345",
+      "name": "Prepare Articles",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=INSERT INTO news_articles \n(article_id, symbol, title, content, url, published_at, source)\nVALUES \n('{{ $json.article_id }}', '{{ $json.symbol }}', '{{ $json.title.replace(/'/g, \"''\") }}', '{{ $json.content.replace(/'/g, \"''\") }}', '{{ $json.url }}', '{{ $json.published_at }}', '{{ $json.source }}')\nON CONFLICT (article_id) DO NOTHING"
+      },
+      "id": "a7b8c9d0-e1f2-3456-1234-567890123456",
+      "name": "Save to Database",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        464,
+        160
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "postgres_trading_bot",
+          "name": "PostgreSQL trading_bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## News Collector\n\nCollects news articles every 4 hours:\n- Fetches 10 latest articles per symbol from EODHD\n- Stores in news_articles table\n- Automatic deduplication via UNIQUE constraint\n- Marks as unanalyzed (analyzed=false)",
+        "height": 320,
+        "width": 400,
+        "color": 4
+      },
+      "id": "b8c9d0e1-f2a3-4567-2345-678901234567",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -960,
+        80
+      ]
+    }
+  ],
+  "connections": {
+    "Every 4 Hours": {
+      "main": [
+        [
+          {
+            "node": "Get Active Symbols",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Active Symbols": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Symbols",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Symbols": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Fetch News from EODHD",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch News from EODHD": {
+      "main": [
+        [
+          {
+            "node": "If Has Articles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Has Articles": {
+      "main": [
+        [
+          {
+            "node": "Prepare Articles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Articles": {
+      "main": [
+        [
+          {
+            "node": "Save to Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Database": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Symbols",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {}
+}
