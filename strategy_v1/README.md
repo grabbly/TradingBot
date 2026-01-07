@@ -23,12 +23,20 @@ Automated trading strategy that:
 
 ```
 strategy_v1/
-├── STRATEGY.md                    # Complete strategy documentation
-├── workflows/
-│   ├── news-collector.json        # Fetches news every 4 hours
-│   ├── sentiment-analysis.json    # Analyzes sentiment at 15:00 daily
-│   └── sentiment-executor.json    # Executes trades at 18:00 daily
-└── README.md                      # This file
+├── README.md                       # This file (quick overview)
+├── STRATEGY.md                     # Complete strategy documentation
+├── CREDENTIALS_SETUP.md            # n8n credentials configuration guide
+├── workflows/                      # Production workflows
+│   ├── news-collector.json         # Fetches news every 4 hours
+│   ├── sentiment-analysis.json     # Analyzes sentiment at 15:00 daily
+│   ├── sentiment-executor.json     # Executes trades at 18:00 daily
+│   ├── ema-crossover-bot.json      # EMA crossover strategy (alternative)
+│   └── ema-logger.json             # EMA data logging
+└── archive/                        # Legacy/migration workflows
+    ├── db-migrate.json
+    ├── fix-permissions-and-migrate.json
+    ├── change-owner-and-migrate.json
+    └── apply-migration-001-manual.json
 ```
 
 ## Key Metrics
