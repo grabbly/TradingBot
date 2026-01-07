@@ -1,58 +1,61 @@
 # Pre-Flight Checklist - Status Report
 **Date:** 2026-01-07  
-**Branch:** upgrade/phase1-validation
+**Branch:** upgrade/phase1-validation  
+**Status:** ✅ COMPLETE + Phase 1 IN PROGRESS
 
-## ✅ Completed
+## ✅ Pre-Flight Complete (100%)
 
-1. **Git Tag v1.0** - Already exists (baseline version)
+1. **Git Tag v1.0** - ✅ Baseline version tagged
 2. **Backup Workflows** - ✅ `strategy_v1/workflows_v1.0_backup/` created
-3. **Git Branch** - ✅ Created and switched to `upgrade/phase1-validation`
-4. **Python venv** - ✅ Already exists at `/Users/gabby/git/TradingBot/venv`
-5. **Dependencies** - ✅ Installed core packages:
-   - pandas 2.3.3
-   - numpy 2.4.0
-   - matplotlib 3.10.8
-   - scipy 1.16.3
-   - alpaca-py 0.43.2
-   - psycopg2-binary 2.9.11
-   - python-dotenv 1.2.1
-   - pyyaml 6.0.3
+3. **Git Branch** - ✅ `upgrade/phase1-validation` active
+4. **Python venv** - ✅ Active with all dependencies
+5. **Dependencies** - ✅ Installed (pandas, numpy, alpaca-py, transformers, torch, etc.)
+6. **Alpaca API** - ✅ Connected (Paper account: $198,999.79 buying power)
+7. **PostgreSQL** - ✅ Connected (***REMOVED***:5432)
+8. **EODHD API** - ✅ Connected with valid key
+9. **Data Directory** - ✅ Created
 
-## ⏳ Pending Manual Checks
+## 🚀 Phase 1: Validation & Foundation (IN PROGRESS)
 
-- [ ] **Alpaca Paper Trading Account** - Need to verify active
-- [ ] **PostgreSQL Connection** - Need to test connection from Mac
-- [ ] **v1.0 Running Status** - Check if currently live
-- [ ] **Database Backup** - Need DB connection details to backup
+### ✅ Task 1.1.1: Fetch Historical Data (COMPLETE - 1 hour)
+- **Status:** ✅ Complete
+- **Data:** 7 symbols × 751 bars = 5,257 total bars (2023-2025)
+- **Files:** `data/historical_{symbol}_2023-2025.csv`
+- **Commit:** cc8c87c
 
-## 📁 File Structure
+### ⏳ Task 1.1.2: Generate Sentiment Proxy (IN PROGRESS - ~30-60 min)
+- **Status:** 🔄 Running (FinBERT model loading...)
+- **Model:** ProsusAI/finbert
+- **Process:** Fetching historical news → FinBERT analysis → CSV generation
+- **Expected output:** `data/sentiment_proxy_2023-2025.csv`
+- **Script:** `scripts/generate_sentiment_proxy.py`
 
-```
-TradingBot/
-├── requirements.txt (NEW - created)
-├── venv/ (READY)
-├── strategy_v1/
-│   ├── workflows/ (ORIGINAL)
-│   ├── workflows_v1.0_backup/ (BACKUP CREATED)
-│   ├── TASKS.md
-│   ├── UPGRADE_PLAN_V2.md
-│   └── ...
-├── scripts/
-├── db/
-└── web/
-```
+### ⏳ Task 1.1.3: Create Backtest Script (PENDING)
+- Base script: `scripts/backtest_ema_strategy.py`
+- New script: `scripts/backtest_sentiment_v1.py`
+- Logic: Top-4 sentiment selection + simulated trading
 
-## 🎯 Next Steps (Phase 1.1 - Task 1.1.1)
+### ⏳ Task 1.1.4: Run Backtest & Analysis (PENDING)
+- Compare 2023/2024/2025 periods
+- Calculate Sharpe, returns, drawdown
+- **GO/NO-GO decision:** Sharpe > 0.5
 
-Ready to start: **Fetch Historical Data (2023-2025)**
-- Script to create: `scripts/fetch_historical_data.py`
-- Symbols: AAPL, AMZN, GOOGL, META, MSFT, NVDA, TSLA
-- Save to: `data/historical_{symbol}_2023-2025.csv`
+## 📊 Progress
 
-## 🔑 Required for Next Steps
+- Pre-Flight: ✅ 100%
+- Phase 1.1: 🔄 25% (1/4 tasks complete, 1 running)
+- Overall Phase 1: 🔄 10%
 
-1. Alpaca API keys (check `.env` file or create)
-2. Confirm data/ folder exists or create it
-3. Begin scripting historical data fetch
+## ⏱️ Time Tracking
 
-**Status:** Ready to begin Phase 1.1.1 ✅
+- Pre-Flight: 2 hours
+- Task 1.1.1: 1 hour
+- Task 1.1.2: In progress (30-60 min estimated)
+- **Total so far:** ~3 hours
+
+## 🎯 Next Milestone
+
+After Task 1.1.2 completes:
+- Create backtest script (Task 1.1.3) - 8 hours
+- Run backtest & analyze (Task 1.1.4) - 2 hours
+- **Target:** v1.0-validated tag by 2026-01-22
