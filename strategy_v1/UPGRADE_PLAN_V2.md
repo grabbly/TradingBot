@@ -135,21 +135,36 @@ v1.0 - это proof-of-concept с серьёзными проблемами:
 
 **Цель:** Перейти от toy-exposure к real trading
 
-### 4.1 Increase Position Sizing
-- [ ] **Task:** Поднять с $250 до $5,000 per position
-  - Max 4 positions = $20k exposure (20% portfolio)
-  - Остальные 80% в cash/bonds (safety buffer)
-- [ ] **Gradual:** Тестить 1 неделю на $1k, потом $5k
-- [ ] **Acceptance:** Backtest показывает приемлемый risk
-- [ ] **Effort:** 0.5 дня (config change)
+### 4.1 Percentage-Based Position Sizing (CRITICAL FIX)
+- [ ] **Task:** Перейти на процентный риск вместо фиксированных сумм
+  - **Risk per trade:** 1% от account balance (адаптируется автоматически)
+  - **With $1,000:** max $10 risk per trade
+  - **With $10,000:** max $100 risk per trade
+  - **Formula:** Position size = Risk ($) / (Entry - Stop Loss)
+- [ ] **Implementation:**
+  - Calculate SL distance first (e.g., 2% below entry)
+  - Position size = min(Account × 1% / SL_distance, Account × 25%)
+  - Use fractional shares (Alpaca supports this)
+- [ ] **Example:** 
+  - Account: $1,000, Risk: $10 (1%)
+  - Stock: $100, SL: $95 → Risk $5/share
+  - Position: $10 / $5 = 2 shares ($200 position)
+- [ ] **Gradual:** Start 0.5% risk, increase to 1% after 1 month
+- [ ] **Acceptance:** No single trade loses > 1.5% account
+- [ ] **Effort:** 1 day (dynamic calculation in Code node)
 
-### 4.2 Stop-Loss & Take-Profit
-- [ ] **Task:** Автоматические SL/TP
-  - **SL:** 2% от entry (bracket order)
-  - **TP:** 4% от entry (или trailing 2%)
-  - Alpaca bracket orders или monitoring workflow
-- [ ] **Acceptance:** Max loss per trade ограничен
-- [ ] **Effort:** 2 дня (bracket orders или monitoring)
+### 4.2 Stop-Loss & Take-Profit (MANDATORY)
+- [ ] **Task:** Автоматические SL/TP для каждого трейда
+  - **SL:** 2-3% от entry (depends on volatility, tighter for high vol)
+  - **TP:** 2:1 reward-to-risk minimum (if SL 2%, TP 4%)
+  - **Implementation:** Alpaca bracket orders (order type: "bracket")
+  - **Trailing:** Optional trailing SL после +2% profit
+- [ ] **For $1,000 account:**
+  - SL $95 on $100 entry = $5 risk/share
+  - Max position: 2 shares ($10 total risk)
+  - TP $104 → $8 profit target (if hit)
+- [ ] **Acceptance:** Every trade has SL/TP, no exceptions
+- [ ] **Effort:** 2 дня (bracket orders API integration)
 
 ### 4.3 Portfolio Drawdown Limit
 - [ ] **Task:** Pause trading при большом drawdown
@@ -285,10 +300,19 @@ v1.0 - это proof-of-concept с серьёзными проблемами:
 
 ## Resources Needed
 
-- **APIs:** Reddit ($500/mo?), X Developer ($100/mo), FinBERT (free/HF)
+- **APIs:** 
+  - FinBERT (free via HuggingFace Inference API)
+  - Reddit Basic ($0, rate limited) or Premium ($50/mo)
+  - X Developer Basic Tier ($0-100/mo depending on needs)
+  - Alpaca Paper (free), Real ($0 commission)
 - **Compute:** Treddy server sufficient, ML может требовать GPU (cloud)
 - **Time:** ~20 часов/неделю на development
-- **Capital:** $100k paper → $10k real (start)
+- **Capital Strategy:**
+  - **Phase 1-2 (Weeks 1-4):** Paper trading only
+  - **Phase 3-4 (Weeks 5-7):** $500 real (50% of capital, test mode)
+  - **Phase 5+ (Week 8+):** $1,000 full (после proof of concept)
+  - **Growth:** Reinvest 50% profits, withdraw 50% (risk management)
+  - **Scale:** После 6 months profitable → increase to $2-5k
 
 ---
 
@@ -303,4 +327,82 @@ v1.0 - это proof-of-concept с серьёзными проблемами:
 
 **Last Updated:** 2026-01-07  
 **Owner:** Gabby  
-**Review:** Weekly on Sundays
+**Review:** Weekly on Sundays  
+**Starting Capital:** $1,000 (real), paper first for Phase 1-2
+
+---
+
+## Appendix: Small Account Adaptation ($1,000 Start)
+
+### Realistic Expectations
+
+**Monthly Returns:**
+- **Conservative:** 3-5% ($30-50/month) — это уже хорошо
+- **Aggressive:** 8-12% ($80-120/month) — возможно, но с drawdowns
+- **Exceptional:** 15%+ — редко sustainable, не планируй на это
+
+**Time to Double:**
+- At 5%/month: ~15 months to $2,000 (compounded)
+- At 10%/month: ~7 months to $2,000
+- Reality: Expect 6-12 months с учётом drawdowns
+
+**Challenges с Small Account:**
+- ❌ Commissions hurt less с Alpaca (no fees), но spread всё равно ест
+- ❌ Psychological pressure: каждые $10 = 1% аккаунта
+- ❌ Limited diversification: можешь держать 2-4 позиции max
+- ✅ Fractional shares solve position sizing (Alpaca supports)
+- ✅ Lower stress vs. large capital (можешь позволить учиться)
+
+### Position Sizing Examples
+
+**Account $1,000:**
+- Risk per trade: $10 (1%)
+- Max position size: $250 (25% account, если tight SL)
+- Typical: 2-4 active positions × $150-250 each
+- Example trade:
+  - Buy AAPL @ $180, SL @ $176 (2.2% or $4/share risk)
+  - Position: $10 risk / $4 = 2.5 shares ($450 total)
+  - TP @ $188 (4.4% or $8/share) → $20 profit if hit
+
+**Account $2,500 (после роста):**
+- Risk per trade: $25 (1%)
+- Max positions: 3-5 × $400-600 each
+- Same %риска, но больше flexibility
+
+**Account $10,000:**
+- Risk per trade: $100 (1%)
+- Can hold 4-6 positions comfortably
+- Now matches expanded plan ($1000-1500/position)
+
+### Broker Requirements
+
+**Must Have:**
+- ✅ Fractional shares (Alpaca, Schwab, Fidelity, Robinhood)
+- ✅ No commissions (Alpaca perfect)
+- ✅ API access for automation (Alpaca Paper + Real)
+- ✅ Bracket orders for SL/TP (Alpaca supports)
+
+**Optional but Nice:**
+- Extended hours trading
+- Options (for hedging later, ignore сейчас)
+- Margin (NOT recommended для $1k — too risky)
+
+### Prop Firm Alternative (Advanced)
+
+Если хочешь больше exposure без риска своих денег:
+- **Funded accounts:** Пройди challenge ($100-300 fee), get $10k-50k funded
+- **Popular:** Apex Trader, Topstep, FundedNext
+- **Profit split:** 80-90% yours, firm gets 10-20%
+- **Risk:** Only lose challenge fee, не свой капитал
+- **Recommendation:** Сначала proof v2.0 на своём $1k, потом try prop challenge
+
+### Risk Management Checklist
+
+- [ ] Never risk >1% per trade ($10 on $1k)
+- [ ] Max 3-4 open positions simultaneously
+- [ ] Stop trading if daily loss >3% ($30)
+- [ ] Stop trading if weekly loss >5% ($50)
+- [ ] Pause 1 week if monthly loss >10% ($100)
+- [ ] Never add to losing position (no averaging down)
+- [ ] Never remove SL once set (discipline > hope)
+- [ ] Journal every trade (why entered, result, lessons)
