@@ -10,7 +10,15 @@ CREATE TABLE IF NOT EXISTS trades (
     price DECIMAL(12, 4),
     quantity INTEGER,
     ema5 DECIMAL(12, 4),
+    ema8 DECIMAL(12, 4),
+    ema9 DECIMAL(12, 4),
+    ema13 DECIMAL(12, 4),
     ema20 DECIMAL(12, 4),
+    ema21 DECIMAL(12, 4),
+    ema34 DECIMAL(12, 4),
+    ema50 DECIMAL(12, 4),
+    ema100 DECIMAL(12, 4),
+    ema200 DECIMAL(12, 4),
     crossover VARCHAR(10),  -- 'bullish', 'bearish', 'none'
     message TEXT,
     order_id VARCHAR(100),
@@ -51,3 +59,27 @@ SELECT
     MAX(timestamp) as last_trade
 FROM trades
 GROUP BY symbol;
+
+-- Снапшоты цены и EMA для визуализации
+CREATE TABLE IF NOT EXISTS ema_snapshots (
+    id SERIAL PRIMARY KEY,
+    timestamp TIMESTAMPTZ NOT NULL,
+    symbol VARCHAR(20) NOT NULL,
+    close_price DECIMAL(12, 4) NOT NULL,
+    ema5 DECIMAL(12, 4),
+    ema8 DECIMAL(12, 4),
+    ema9 DECIMAL(12, 4),
+    ema13 DECIMAL(12, 4),
+    ema20 DECIMAL(12, 4),
+    ema21 DECIMAL(12, 4),
+    ema34 DECIMAL(12, 4),
+    ema50 DECIMAL(12, 4),
+    ema100 DECIMAL(12, 4),
+    ema200 DECIMAL(12, 4),
+    action VARCHAR(20),         -- 'hold', 'buy', 'sell', и т.п.
+    crossover VARCHAR(10),      -- 'bullish', 'bearish', 'none'
+    message TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_ema_snapshots_symbol ON ema_snapshots(symbol);
+CREATE INDEX IF NOT EXISTS idx_ema_snapshots_timestamp ON ema_snapshots(timestamp DESC);

@@ -1,0 +1,131 @@
+{
+  "name": "DB Migrations",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger-manual",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [-880, 240]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "CREATE TABLE IF NOT EXISTS schema_migrations (id SERIAL PRIMARY KEY, version VARCHAR(50) NOT NULL UNIQUE, name VARCHAR(255) NOT NULL, applied_at TIMESTAMPTZ DEFAULT NOW(), checksum VARCHAR(64)); CREATE INDEX IF NOT EXISTS idx_schema_migrations_version ON schema_migrations(version);",
+        "options": {}
+      },
+      "id": "init-migrations-table",
+      "name": "Init Migrations Table",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [-656, 240],
+      "credentials": {
+        "postgres": {
+          "id": "Cg19dKBPWwzZgtn2",
+          "name": "PostgreSQL Trading"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT version FROM schema_migrations ORDER BY version;",
+        "options": {}
+      },
+      "id": "get-applied-migrations",
+      "name": "Get Applied Migrations",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [-448, 240],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "Cg19dKBPWwzZgtn2",
+          "name": "PostgreSQL Trading"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const migrations = [{version: '001', name: 'add_ema_columns', description: 'EMA columns', sql: 'ALTER TABLE ema_snapshots ADD COLUMN IF NOT EXISTS ema8 DECIMAL(12,4), ADD COLUMN IF NOT EXISTS ema9 DECIMAL(12,4), ADD COLUMN IF NOT EXISTS ema13 DECIMAL(12,4), ADD COLUMN IF NOT EXISTS ema21 DECIMAL(12,4), ADD COLUMN IF NOT EXISTS ema34 DECIMAL(12,4), ADD COLUMN IF NOT EXISTS ema50 DECIMAL(12,4), ADD COLUMN IF NOT EXISTS ema100 DECIMAL(12,4), ADD COLUMN IF NOT EXISTS ema200 DECIMAL(12,4); ALTER TABLE trades ADD COLUMN IF NOT EXISTS ema8 DECIMAL(12,4), ADD COLUMN IF NOT EXISTS ema9 DECIMAL(12,4), ADD COLUMN IF NOT EXISTS ema13 DECIMAL(12,4), ADD COLUMN IF NOT EXISTS ema21 DECIMAL(12,4), ADD COLUMN IF NOT EXISTS ema34 DECIMAL(12,4), ADD COLUMN IF NOT EXISTS ema50 DECIMAL(12,4), ADD COLUMN IF NOT EXISTS ema100 DECIMAL(12,4), ADD COLUMN IF NOT EXISTS ema200 DECIMAL(12,4);'}]; const inputItems = $input.all(); const appliedMigrations = inputItems.length > 0 ? inputItems.map(item => item.json.version).filter(v => v) : []; const pendingMigrations = migrations.filter(migration => !appliedMigrations.includes(migration.version)); if (pendingMigrations.length === 0) {return []; } return pendingMigrations.map(migration => ({json: {version: migration.version, name: migration.name, description: migration.description, sql: migration.sql}}));"
+      },
+      "id": "check-pending-migrations",
+      "name": "Check Pending Migrations",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-240, 240]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.sql }}",
+        "options": {}
+      },
+      "id": "apply-migration",
+      "name": "Apply Migration",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [0, 240],
+      "credentials": {
+        "postgres": {
+          "id": "Cg19dKBPWwzZgtn2",
+          "name": "PostgreSQL Trading"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=INSERT INTO schema_migrations (version, name) VALUES ('{{ $json.version }}', '{{ $json.name }}') ON CONFLICT (version) DO NOTHING;",
+        "options": {}
+      },
+      "id": "register-migration",
+      "name": "Register Migration",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [240, 240],
+      "credentials": {
+        "postgres": {
+          "id": "Cg19dKBPWwzZgtn2",
+          "name": "PostgreSQL Trading"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all(); return {json: {status: 'completed', message: 'Применено миграций: ' + items.length, count: items.length, migrations: items.map(i => ({version: i.json.version, name: i.json.name})), timestamp: new Date().toISOString()}};"
+      },
+      "id": "summary",
+      "name": "Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 240]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [[{"node": "Init Migrations Table", "type": "main", "index": 0}]]
+    },
+    "Init Migrations Table": {
+      "main": [[{"node": "Get Applied Migrations", "type": "main", "index": 0}]]
+    },
+    "Get Applied Migrations": {
+      "main": [[{"node": "Check Pending Migrations", "type": "main", "index": 0}]]
+    },
+    "Check Pending Migrations": {
+      "main": [[{"node": "Apply Migration", "type": "main", "index": 0}]]
+    },
+    "Apply Migration": {
+      "main": [[{"node": "Register Migration", "type": "main", "index": 0}]]
+    },
+    "Register Migration": {
+      "main": [[{"node": "Summary", "type": "main", "index": 0}]]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "761f1737ead169f86632b637ef0da6362172a07a6a3e5de45f80125c04107994"
+  }
+}

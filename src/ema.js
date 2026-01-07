@@ -63,7 +63,44 @@ function calculateDualEMA(bars) {
   };
 }
 
+/**
+ * Рассчитывает все EMA периоды для бара
+ * @param {Object[]} bars - OHLC данные от Alpaca
+ * @param {number[]} periods - Массив периодов EMA [5, 8, 9, 13, 20, 21, 34, 50, 100, 200]
+ * @returns {Object} - Текущие и предыдущие значения всех EMA
+ */
+function calculateMultipleEMA(bars, periods = [5, 8, 9, 13, 20, 21, 34, 50, 100, 200]) {
+  const closes = bars.map(bar => parseFloat(bar.c));
+  const lastIndex = closes.length - 1;
+  const prevIndex = closes.length - 2;
+  
+  const current = {
+    close: closes[lastIndex],
+    timestamp: bars[lastIndex].t
+  };
+  
+  const previous = {
+    close: closes[prevIndex],
+    timestamp: bars[prevIndex].t
+  };
+  
+  // Рассчитываем EMA для каждого периода
+  periods.forEach(period => {
+    if (closes.length >= period) {
+      const ema = calculateEMA(closes, period);
+      current[`ema${period}`] = ema[lastIndex];
+      previous[`ema${period}`] = ema[prevIndex];
+    } else {
+      current[`ema${period}`] = null;
+      previous[`ema${period}`] = null;
+    }
+  });
+  
+  return { current, previous, periods };
+}
+
 // Экспорт для n8n (копировать в Function Node)
 // return { json: calculateDualEMA($input.first().json.bars) };
+// return { json: calculateMultipleEMA($input.first().json.bars) };
 
-module.exports = { calculateEMA, calculateDualEMA };
+module.exports = { calculateEMA, calculateDualEMA, calculateMultipleEMA };
