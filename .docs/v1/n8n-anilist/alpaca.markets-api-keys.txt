@@ -1,0 +1,13 @@
+API Keys
+Endpoint
+https://paper-api.alpaca.markets/v2
+Key
+PKTOC53GU3GKTQPBLW6YKD23TQ
+Secret
+3dGsneqVn68341B9aZzrAidUJBcqcgHF9s5EjdbZU974
+
+
+Telegram bot (@trady_info_bot) API Key
+8250603742:AAFrnztK1MMQXHLdPEg3HwWwYyiZEBYHTSE
+
+chat Id: 356747848
