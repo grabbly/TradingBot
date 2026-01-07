@@ -1,0 +1,754 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 18
+            }
+          ]
+        }
+      },
+      "id": "20a93d41-386d-42a2-baf8-78f966f30b3f",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        -112,
+        368
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "9b91d2ac-9f9b-4f60-bc0f-5f7f3e2d69a0",
+              "operator": {
+                "name": "filter.operator.equals",
+                "type": "boolean",
+                "operation": "equals"
+              },
+              "leftValue": "={{ $now.setZone(\"Asia/Jerusalem\").weekday < 6 }}",
+              "rightValue": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fd63dc52-12c6-4e0d-8872-f89b684b3e0a",
+      "name": "If Weekday (Mon-Fri)",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        112,
+        368
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "url": "https://paper-api.alpaca.markets/v2/account",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {}
+      },
+      "id": "b2908136-c72a-4c04-8e41-9fbc105e81d5",
+      "name": "Alpaca-get-account-info",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        336,
+        368
+      ],
+      "executeOnce": true,
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "GMo7eqsdOII9unPE",
+          "name": "Custom Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO account_balance (date, balance, change)\nVALUES (\nCURRENT_DATE,\n{{ $json.equity }},\n{{ ($json.equity - $json.last_equity) / $json.last_equity }}\n)\nON CONFLICT (date) DO UPDATE SET\n  balance = EXCLUDED.balance,\n  change = EXCLUDED.change",
+        "options": {}
+      },
+      "id": "55b11621-0bd0-408f-9415-89b0ff42ddaf",
+      "name": "save_account_balance",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        560,
+        368
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "gdEjFpQ7Jf6e0OER",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  ss.symbol AS stock,\n  ss.sentiment_score AS \"sentimentScore\",\n  ss.rationale,\n  ts.active\nFROM sentiment_scores ss\nINNER JOIN tracked_symbols ts ON ss.symbol = ts.symbol\nWHERE ss.date = CURRENT_DATE\n  AND ts.active = true\nORDER BY ss.sentiment_score DESC",
+        "options": {}
+      },
+      "id": "69b362c2-649d-4f13-912a-c2413f980548",
+      "name": "get_sentiment_scores",
+      "type": "n8n-nodes-base.postgres",
+      "position": [
+        784,
+        368
+      ],
+      "typeVersion": 2.4,
+      "credentials": {
+        "postgres": {
+          "id": "gdEjFpQ7Jf6e0OER",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const sortedItems = $input.all().sort((a, b) => b.json.sentimentScore - a.json.sentimentScore);\nconst top4Items = sortedItems.slice(0, 4);\nreturn top4Items"
+      },
+      "id": "83842ebb-61b9-4a46-ac49-cda85dbb7399",
+      "name": "filter_top_sentiment_score",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1008,
+        368
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "url": "https://paper-api.alpaca.markets/v2/positions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {}
+      },
+      "id": "2c29a945-8788-4fa5-8e4e-f22a69e5df42",
+      "name": "Alpaca_get_open_positions",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1232,
+        368
+      ],
+      "executeOnce": true,
+      "typeVersion": 4.2,
+      "alwaysOutputData": true,
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "GMo7eqsdOII9unPE",
+          "name": "Custom Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const openPositions = $('Alpaca_get_open_positions').all();\nconst topSentiment = $('filter_top_sentiment_score').all();\nconst account = $('Alpaca-get-account-info').first()?.json ?? {};\n\n// Отфильтровать пустые элементы (которые появляются при alwaysOutputData, когда позиций нет)\nconst validOpenPositions = openPositions.filter(pos => pos.json && pos.json.symbol);\n\nconst openPositionSymbols = validOpenPositions.map(pos => pos.json.symbol);\nconst topSentimentSymbols = topSentiment.map(sen => sen.json.stock);\n\nconst positionsNotInTopSentiment = validOpenPositions\n  .filter(pos => !topSentimentSymbols.includes(pos.json.symbol))\n  .map(pos => ({\n    symbol: pos.json.symbol,\n    market_value: pos.json.market_value,\n    qty: pos.json.qty,\n    asset_id: pos.json.asset_id\n  }));\n\nconst symbolsNotInOpenPositions = topSentiment\n  .filter(sen => !openPositionSymbols.includes(sen.json.stock))\n  .map(sen => ({\n    symbol: sen.json.stock,\n  }));\n\nconst totalMarketValue = positionsNotInTopSentiment.reduce((sum, pos) => sum + (parseFloat(pos.market_value) || 0), 0);\n\n// V2: если продавать нечего (портфель пустой или уже соответствует топ-4), используем свободные деньги для первой покупки\nconst availableCash = parseFloat(account.cash ?? account.buying_power ?? '0') || 0;\nconst totalBudget = totalMarketValue > 0 ? totalMarketValue : availableCash;\n\n// Лимитируем риск: максимум ~$250 на тикер, даже если кэш большой\nconst maxPerSymbol = 250;\nconst valuePerSymbolRaw = symbolsNotInOpenPositions.length > 0\n  ? totalBudget / symbolsNotInOpenPositions.length\n  : 0;\nconst valuePerSymbol = Math.min(valuePerSymbolRaw, maxPerSymbol);\n\nconst symbolsWithMarketValue = symbolsNotInOpenPositions.map(item => ({\n  ...item,\n  market_value_per_symbol: valuePerSymbol,\n}));\n\nconst hasPositionsToOpen = symbolsWithMarketValue.length > 0 && valuePerSymbol > 0;\n\nreturn [\n  {\n    json: {\n      positions_not_in_top_sentiment: positionsNotInTopSentiment,\n      symbols_not_in_open_positions: symbolsWithMarketValue,\n      has_positions_to_close: positionsNotInTopSentiment.length > 0,\n      has_positions_to_open: hasPositionsToOpen\n    }\n  }\n];"
+      },
+      "id": "dbc4280b-e93b-406c-8c69-d978f55bfc5b",
+      "name": "create_positions_to_close_and_positions_two_open",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1456,
+        368
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "fa58c3b2-1da8-4bd2-97a2-b0e2c8e5d4fd",
+              "operator": {
+                "name": "filter.operator.equals",
+                "type": "boolean",
+                "operation": "equals"
+              },
+              "leftValue": "={{ $json.has_positions_to_close }}",
+              "rightValue": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "55cc57c5-e76c-4292-8d5a-d0447a39a094",
+      "name": "check_has_positions_to_close",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        1904,
+        272
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "3d8bfa6e-524b-4b3b-92f1-2e20dd2f5d71",
+              "operator": {
+                "name": "filter.operator.equals",
+                "type": "boolean",
+                "operation": "equals"
+              },
+              "leftValue": "={{ $json.has_positions_to_open }}",
+              "rightValue": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "319a5293-54e3-4967-a5c2-19ad096e8ad1",
+      "name": "check_has_positions_to_open",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        1680,
+        464
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "positions_not_in_top_sentiment",
+        "options": {}
+      },
+      "id": "08ea55bc-f3a7-4cc2-b60f-67b3155b3b3e",
+      "name": "positions_to_close",
+      "type": "n8n-nodes-base.splitOut",
+      "position": [
+        2128,
+        272
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "=https://paper-api.alpaca.markets/v2/positions/{{ $('positions_to_close').item.json.symbol }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {}
+      },
+      "id": "c17e8b91-ec8d-4b66-8e83-d939e703da0f",
+      "name": "Alpaca-post-order-sell",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        2352,
+        272
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "GMo7eqsdOII9unPE",
+          "name": "Custom Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "symbols_not_in_open_positions",
+        "options": {}
+      },
+      "id": "4108f23e-353b-4748-931d-3c813cb84442",
+      "name": "positions_to_open",
+      "type": "n8n-nodes-base.splitOut",
+      "position": [
+        1904,
+        464
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "amount": 10,
+        "unit": "seconds"
+      },
+      "id": "1cb43515-8d3b-40f8-b7f7-d1af227cbbf8",
+      "name": "Wait",
+      "type": "n8n-nodes-base.wait",
+      "position": [
+        2128,
+        464
+      ],
+      "webhookId": "3d1031f5-7a20-4c3a-8791-748e93830402",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://paper-api.alpaca.markets/v2/orders",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "symbol",
+              "value": "={{ $('positions_to_open').item.json.symbol }}"
+            },
+            {
+              "name": "notional",
+              "value": "={{ $('positions_to_open').item.json.market_value_per_symbol.toFixed(2) }}"
+            },
+            {
+              "name": "side",
+              "value": "buy"
+            },
+            {
+              "name": "type",
+              "value": "market"
+            },
+            {
+              "name": "time_in_force",
+              "value": "day"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "faf661b4-107f-48fc-b1cc-bbe66da80ab9",
+      "name": "Alpaca-post-order-buy",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        2352,
+        464
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "GMo7eqsdOII9unPE",
+          "name": "Custom Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "356747848",
+        "text": "=🔴 *SELL ORDER* 🔴\n\n📊 Symbol: `{{ $('positions_to_close').item.json.symbol }}`\n💵 Value: ${{ Number($('positions_to_close').item.json.market_value).toFixed(2) }}\n📉 Reason: Not in top-4 sentiment\n\n⏰ {{ $now.toFormat('HH:mm:ss') }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "telegram-sell-alert",
+      "name": "Telegram_Sell_Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2240,
+        272
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "NeCkDlU3OGIVsHG0",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "356747848",
+        "text": "=🟢 *BUY ORDER* 🟢\n\n📊 Symbol: `{{ $('positions_to_open').item.json.symbol }}`\n💵 Value: ${{ Number($('positions_to_open').item.json.market_value_per_symbol).toFixed(2) }}\n📈 Reason: Top-4 sentiment\n\n⏰ {{ $now.toFormat('HH:mm:ss') }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "telegram-buy-alert",
+      "name": "Telegram_Buy_Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2016,
+        464
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "NeCkDlU3OGIVsHG0",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "468f4853-acf1-4802-bdaf-c7902881652f",
+      "name": "merge_orders_to_write_to_sheets",
+      "type": "n8n-nodes-base.merge",
+      "position": [
+        2576,
+        368
+      ],
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO positions (date, symbol, order_type, value)\nVALUES (\n  CURRENT_DATE,\n  '{{ $json.symbol }}',\n  '{{ $json.side }}',\n  {{ $json.side == 'buy' ? $json.notional : $('positions_to_close').item.json.market_value }}\n)",
+        "options": {}
+      },
+      "id": "5b5b4a9e-0b6d-4c1b-8f3a-9d7f8e2c3f4a",
+      "name": "save_positions_to_db",
+      "type": "n8n-nodes-base.postgres",
+      "position": [
+        2800,
+        368
+      ],
+      "typeVersion": 2.4,
+      "credentials": {
+        "postgres": {
+          "id": "gdEjFpQ7Jf6e0OER",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://paper-api.alpaca.markets/v2/account",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "options": {}
+      },
+      "id": "get-portfolio-summary",
+      "name": "Get_Portfolio_Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3024,
+        368
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "GMo7eqsdOII9unPE",
+          "name": "Custom Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "356747848",
+        "text": "=📊 *PORTFOLIO SUMMARY* 📊\n\n💰 Total Value: ${{ Number($json.equity).toFixed(2) }}\n📈 Daily P/L: ${{ Number($json.equity - $json.last_equity).toFixed(2) }} ({{ (($json.equity - $json.last_equity) / $json.last_equity * 100).toFixed(2) }}%)\n💵 Cash: ${{ Number($json.cash).toFixed(2) }}\n📦 Buying Power: ${{ Number($json.buying_power).toFixed(2) }}\n\n⏰ {{ $now.toFormat('HH:mm:ss') }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "telegram-portfolio-summary",
+      "name": "Telegram_Portfolio_Summary",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        3248,
+        368
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "NeCkDlU3OGIVsHG0",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## V2 Changes ✅\n- Weekend guard: runs only Mon-Fri (Asia/Jerusalem)\n- First buy supported: if no sells, uses Alpaca account cash/buying_power to allocate buys\n- Prevents buy orders with 0 notional\n\nNote: sell uses DELETE /v2/positions/{symbol} (full close).",
+        "height": 420,
+        "width": 560,
+        "color": 2
+      },
+      "id": "9c3bf852-2793-495a-baf3-0abed7071ba7",
+      "name": "Sticky Note - V2",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        0,
+        0
+      ],
+      "typeVersion": 1
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "If Weekday (Mon-Fri)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Weekday (Mon-Fri)": {
+      "main": [
+        [
+          {
+            "node": "Alpaca-get-account-info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alpaca-get-account-info": {
+      "main": [
+        [
+          {
+            "node": "save_account_balance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "save_account_balance": {
+      "main": [
+        [
+          {
+            "node": "get_sentiment_scores",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_sentiment_scores": {
+      "main": [
+        [
+          {
+            "node": "filter_top_sentiment_score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "filter_top_sentiment_score": {
+      "main": [
+        [
+          {
+            "node": "Alpaca_get_open_positions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alpaca_get_open_positions": {
+      "main": [
+        [
+          {
+            "node": "create_positions_to_close_and_positions_two_open",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "create_positions_to_close_and_positions_two_open": {
+      "main": [
+        [
+          {
+            "node": "check_has_positions_to_close",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "check_has_positions_to_open",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "check_has_positions_to_close": {
+      "main": [
+        [
+          {
+            "node": "positions_to_close",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "check_has_positions_to_open": {
+      "main": [
+        [
+          {
+            "node": "positions_to_open",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "positions_to_close": {
+      "main": [
+        [
+          {
+            "node": "Telegram_Sell_Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram_Sell_Alert": {
+      "main": [
+        [
+          {
+            "node": "Alpaca-post-order-sell",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alpaca-post-order-sell": {
+      "main": [
+        [
+          {
+            "node": "merge_orders_to_write_to_sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "positions_to_open": {
+      "main": [
+        [
+          {
+            "node": "Telegram_Buy_Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram_Buy_Alert": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Alpaca-post-order-buy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alpaca-post-order-buy": {
+      "main": [
+        [
+          {
+            "node": "merge_orders_to_write_to_sheets",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "merge_orders_to_write_to_sheets": {
+      "main": [
+        [
+          {
+            "node": "save_positions_to_db",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "save_positions_to_db": {
+      "main": [
+        [
+          {
+            "node": "Get_Portfolio_Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get_Portfolio_Summary": {
+      "main": [
+        [
+          {
+            "node": "Telegram_Portfolio_Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "2c5b1575ddd1ce97f568eb6f35b192523455a69713066ed09981997135e408e8"
+  }
+}
