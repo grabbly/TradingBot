@@ -322,7 +322,7 @@ def run_backtest():
     print(f"  Rebalances:       {rebalance_count:>12}")
     
     # Generate report
-    generate_report(metrics, equity_df, portfolio)
+    generate_report(metrics, equity_df, portfolio, sentiment)
     
     # Plot results
     plot_results(equity_df, portfolio)
@@ -344,7 +344,7 @@ def run_backtest():
     return metrics, equity_df, portfolio
 
 
-def generate_report(metrics, equity_df, portfolio):
+def generate_report(metrics, equity_df, portfolio, sentiment_data=None):
     """Generate markdown report"""
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     report_path = REPORTS_DIR / f'backtest_v1_results_{timestamp}.md'
@@ -380,6 +380,116 @@ def generate_report(metrics, equity_df, portfolio):
         else:
             f.write(f"❌ **NO-GO:** Sharpe ratio {metrics['sharpe_ratio']:.2f} < 0.5\n\n")
             f.write(f"Strategy underperforms. Consider pivot or refinement.\n\n")
+        
+        # Trade log
+        f.write(f"## Trade Log (Last 50 Trades)\n\n")
+        trades_df = pd.DataFrame(portfolio.trades)
+        if len(trades_df) > 0:
+            f.write(f"| Date | Action | Symbol | Shares | Price | Value |\n")
+            f.write(f"|------|--------|--------|--------|-------|-------|\n")
+            for _, trade in trades_df.tail(50).iterrows():
+                f.write(f"| {trade['date'].strftime('%Y-%m-%d')} | {trade['action']} | "
+                       f"{trade['symbol']} | {trade['shares']} | "
+                       f"${trade['price']:.2f} | ${trade['value']:.2f} |\n")
+            f.write(f"\n")
+        
+        # Monthly performance
+        f.write(f"## Monthly Performance\n\n")
+        equity_df['month'] = equity_df['date'].dt.to_period('M')
+        monthly = equity_df.groupby('month').agg({
+            'equity': ['first', 'last']
+        })
+        monthly.columns = ['start', 'end']
+        monthly['return'] = (monthly['end'] - monthly['start']) / monthly['start'] * 100
+        
+        f.write(f"| Month | Start Equity | End Equity | Return |\n")
+        f.write(f"|-------|--------------|------------|--------|\n")
+        for month, row in monthly.iterrows():
+            f.write(f"| {month} | ${row['start']:,.2f} | ${row['end']:,.2f} | "
+                   f"{row['return']:+.2f}% |\n")
+        f.write(f"\n")
+        
+        # Decision-making analysis
+        if sentiment_data is not None:
+            f.write(f"## Decision-Making Logic\n\n")
+            f.write(f"**Strategy:** Each day, rank all 7 symbols by sentiment score and select the top-4.\n\n")
+            
+            # Sample days
+            example_dates = ['2023-01-03', '2023-06-15', '2024-01-15', '2025-06-15', '2025-12-29']
+            f.write(f"### Example Days\n\n")
+            
+            for date_str in example_dates:
+                date = pd.to_datetime(date_str)
+                day_sentiment = sentiment_data[sentiment_data['date'] == date].copy()
+                
+                if len(day_sentiment) == 0:
+                    continue
+                
+                day_sentiment = day_sentiment.sort_values('sentiment', ascending=False)
+                
+                f.write(f"#### {date_str}\n\n")
+                f.write(f"| Rank | Symbol | Sentiment | Selected |\n")
+                f.write(f"|------|--------|-----------|----------|\n")
+                
+                for i, (_, row) in enumerate(day_sentiment.iterrows(), 1):
+                    selected = "✅ BUY" if i <= 4 else "❌ SKIP"
+                    f.write(f"| {i} | {row['symbol']} | {row['sentiment']:.4f} | {selected} |\n")
+                
+                top_4 = day_sentiment.head(4)['symbol'].tolist()
+                f.write(f"\n**Portfolio:** {', '.join(top_4)}\n\n")
+            
+            # Rebalancing frequency
+            f.write(f"### Rebalancing Frequency\n\n")
+            
+            all_dates = sorted(sentiment_data['date'].unique())
+            rebalance_count = 0
+            prev_portfolio = None
+            
+            for date in all_dates:
+                day_sentiment = sentiment_data[sentiment_data['date'] == date]
+                if len(day_sentiment) == 0:
+                    continue
+                
+                current_portfolio = set(day_sentiment.nlargest(4, 'sentiment')['symbol'].tolist())
+                
+                if prev_portfolio is not None and current_portfolio != prev_portfolio:
+                    rebalance_count += 1
+                
+                prev_portfolio = current_portfolio
+            
+            total_days = len(all_dates)
+            rebalance_pct = (rebalance_count / total_days) * 100
+            avg_days = total_days / rebalance_count if rebalance_count > 0 else 0
+            
+            f.write(f"- **Total Trading Days:** {total_days}\n")
+            f.write(f"- **Rebalances:** {rebalance_count}\n")
+            f.write(f"- **Rebalance Frequency:** {rebalance_pct:.1f}% of days\n")
+            f.write(f"- **Avg Days Between Rebalances:** {avg_days:.1f}\n\n")
+            
+            # Symbol popularity
+            f.write(f"### Symbol Selection Frequency\n\n")
+            
+            symbol_days = {}
+            for date in all_dates:
+                day_sentiment = sentiment_data[sentiment_data['date'] == date]
+                if len(day_sentiment) == 0:
+                    continue
+                
+                top_4 = day_sentiment.nlargest(4, 'sentiment')['symbol'].tolist()
+                for symbol in top_4:
+                    symbol_days[symbol] = symbol_days.get(symbol, 0) + 1
+            
+            sorted_symbols = sorted(symbol_days.items(), key=lambda x: x[1], reverse=True)
+            
+            f.write(f"| Symbol | Days in Portfolio | Percentage | Avg per Year |\n")
+            f.write(f"|--------|-------------------|------------|---------------|\n")
+            
+            for symbol, days in sorted_symbols:
+                pct = (days / total_days) * 100
+                days_per_year = days / 3
+                f.write(f"| {symbol} | {days} | {pct:.1f}% | {days_per_year:.0f} |\n")
+            
+            f.write(f"\n💡 Portfolio always holds exactly 4 symbols (equal weight 25% each)\n\n")
         
         f.write(f"## Equity Curve\n\n")
         f.write(f"See: `backtest_equity_curve_{timestamp}.png`\n\n")
