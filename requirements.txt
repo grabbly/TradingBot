@@ -1,0 +1,38 @@
+# TradingBot v1.x Requirements
+# Phase 1: Backtest & Validation
+
+# Core Trading
+alpaca-py>=0.8.0
+alpaca-trade-api>=3.0.0
+
+# Data Analysis
+pandas>=2.0.0
+numpy>=1.24.0
+matplotlib>=3.7.0
+scipy>=1.10.0
+
+# Technical Analysis
+ta-lib>=0.4.0  # May require manual install: brew install ta-lib
+pandas-ta>=0.3.14b
+
+# Sentiment Analysis (Phase 2)
+transformers>=4.30.0
+torch>=2.0.0
+requests>=2.31.0
+
+# Database
+psycopg2-binary>=2.9.0
+sqlalchemy>=2.0.0
+
+# API & Web (Phase 5)
+flask>=2.3.0
+flask-cors>=4.0.0
+
+# Utilities
+python-dotenv>=1.0.0
+pyyaml>=6.0
+
+# Testing & Development
+pytest>=7.4.0
+pytest-cov>=4.1.0
+black>=23.7.0
