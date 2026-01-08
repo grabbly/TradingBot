@@ -4,3 +4,7 @@
 
 # Secrets
 .docs/alpaca.markets-api-keys.txt
+.env
+data/
+*.csv
+reports/

@@ -1,0 +1,356 @@
+{
+  "nodes": [
+      {
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "minutes",
+                "minutesInterval": 1
+              }
+            ]
+          }
+        },
+        "id": "e147f4ed-0e10-474f-820c-2141e7863f68",
+        "name": "Every Minute",
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.1,
+        "position": [
+          -880,
+          112
+        ]
+      },
+      {
+        "parameters": {
+          "url": "=https://data.alpaca.markets/v2/stocks/{{ $json.symbol || 'NVDA' }}/bars",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpCustomAuth",
+          "sendQuery": true,
+          "queryParameters": {
+            "parameters": [
+              {
+                "name": "timeframe",
+                "value": "1Hour"
+              },
+              {
+                "name": "limit",
+                "value": "50"
+              },
+              {
+                "name": "adjustment",
+                "value": "split"
+              }
+            ]
+          },
+          "options": {}
+        },
+      "name": "Get OHLC Bars",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -656,
+        112
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "9QJ6HFd2VND4G0I4",
+          "name": "Auth Alpaca API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// === EMA CALCULATION ===\nconst config = {\n  symbol: 'NVDA',\n  emaShort: 5,\n  emaLong: 20,\n  confirmationPercent: 0.75\n};\n\nconst barsData = $input.first().json;\nconst bars = barsData.bars || [];\n\n// No bars at all\nif (!bars.length) {\n  return {\n    json: {\n      config,\n      noData: true,\n      message: 'No bars returned from Alpaca'\n    }\n  };\n}\n\n// Not enough bars to compute long EMA + previous candle\nif (bars.length < config.emaLong + 1) {\n  return {\n    json: {\n      config,\n      notEnoughBars: true,\n      barsAvailable: bars.length,\n      requiredBars: config.emaLong + 1,\n      message: `Need at least ${config.emaLong + 1} bars, got ${bars.length}`\n    }\n  };\n}\n\n// Calculate EMA\nfunction calculateEMA(prices, period) {\n  const ema = [];\n  const multiplier = 2 / (period + 1);\n\n  let sum = 0;\n  for (let i = 0; i < period; i++) sum += prices[i];\n  ema[period - 1] = sum / period;\n\n  for (let i = period; i < prices.length; i++) {\n    ema[i] = (prices[i] - ema[i - 1]) * multiplier + ema[i - 1];\n  }\n  return ema;\n}\n\nconst closes = bars.map(b => parseFloat(b.c));\nconst ema5 = calculateEMA(closes, config.emaShort);\nconst ema20 = calculateEMA(closes, config.emaLong);\n\nconst last = closes.length - 1;\nconst prev = closes.length - 2;\n\nreturn {\n  json: {\n    config,\n    current: {\n      ema5: ema5[last],\n      ema20: ema20[last],\n      close: closes[last],\n      timestamp: bars[last].t\n    },\n    previous: {\n      ema5: ema5[prev],\n      ema20: ema20[prev],\n      close: closes[prev]\n    },\n    lastBar: bars[last]\n  }\n};"
+      },
+      "id": "9092a73a-3473-4c49-bd57-7cde6e0fd42d",
+      "name": "Calculate EMA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -448,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// === SIGNAL DETECTION ===\nconst input = $input.first().json;\n\n// If not enough data yet, just hold and pass info through\nif (input.noData || input.notEnoughBars || !input.current || !input.previous) {\n  return {\n    json: {\n      action: 'hold',\n      message: input.message || 'Waiting for enough bars to start EMA logic',\n      crossover: 'none',\n      state: {},\n      ema5: null,\n      ema20: null,\n      currentPrice: null,\n      symbol: (input.config && input.config.symbol) || 'NVDA',\n      timestamp: new Date().toISOString(),\n      notReady: true,\n      barsAvailable: input.barsAvailable,\n      requiredBars: input.requiredBars\n    }\n  };\n}\n\nconst { current, previous, config } = input;\n\n// Get state from static data\nconst state = $getWorkflowStaticData('global');\nif (!state.status) {\n  state.status = 'flat';\n  state.crossoverPrice = null;\n  state.crossoverTime = null;\n  state.entryPrice = null;\n}\n\n// Detect crossover\nfunction detectCrossover(curr, prev) {\n  if (prev.ema5 <= prev.ema20 && curr.ema5 > curr.ema20) return 'bullish';\n  if (prev.ema5 >= prev.ema20 && curr.ema5 < curr.ema20) return 'bearish';\n  return 'none';\n}\n\nconst crossover = detectCrossover(current, previous);\nconst currentPrice = current.close;\n\nlet action = 'hold';\nlet message = '';\n\nswitch (state.status) {\n  case 'flat':\n    if (crossover === 'bullish') {\n      state.status = 'waiting_confirmation';\n      state.crossoverPrice = current.close;\n      state.crossoverTime = current.timestamp;\n      action = 'signal_detected';\n      message = `Bullish crossover at ${current.close.toFixed(2)}. Waiting +${config.confirmationPercent}%`;\n    }\n    break;\n\n  case 'waiting_confirmation':\n    const target = state.crossoverPrice * (1 + config.confirmationPercent / 100);\n    if (crossover === 'bearish') {\n      state.status = 'flat';\n      state.crossoverPrice = null;\n      action = 'signal_cancelled';\n      message = 'Bearish crossover - signal cancelled';\n    } else if (currentPrice >= target) {\n      state.status = 'in_position';\n      state.entryPrice = currentPrice;\n      action = 'buy';\n      message = `Confirmed! BUY at ${currentPrice.toFixed(2)}`;\n    } else {\n      message = `Waiting: ${currentPrice.toFixed(2)} / ${target.toFixed(2)}`;\n    }\n    break;\n\n  case 'in_position':\n    if (crossover === 'bearish') {\n      const pnl = ((currentPrice - state.entryPrice) / state.entryPrice * 100).toFixed(2);\n      action = 'sell';\n      message = `Bearish crossover - SELL at ${currentPrice.toFixed(2)}. P/L: ${pnl}%`;\n      state.status = 'flat';\n      state.entryPrice = null;\n    }\n    break;\n}\n\nreturn {\n  json: {\n    action,\n    message,\n    crossover,\n    state: { ...state },\n    ema5: current.ema5,\n    ema20: current.ema20,\n    currentPrice,\n    symbol: config.symbol,\n    timestamp: current.timestamp\n  }\n};"
+      },
+      "id": "45fb033f-2fc0-4dda-a460-81e5b56c7a37",
+      "name": "Detect Signal",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -224,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "buy-condition",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "buy",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f34b05da-2457-4af4-af22-44db114fc51c",
+      "name": "If Buy",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "sell-condition",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "sell",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "63f80e32-2369-4bba-a449-04b0505a4bdb",
+      "name": "If Sell",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        0,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://paper-api.alpaca.markets/v2/orders",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"symbol\": \"{{ $json.symbol }}\",\n  \"qty\": \"10\",\n  \"side\": \"buy\",\n  \"type\": \"market\",\n  \"time_in_force\": \"day\"\n}",
+        "options": {}
+      },
+      "id": "e0e32a57-2736-4578-a364-20086198b822",
+      "name": "Place Buy Order",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        224,
+        0
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "9QJ6HFd2VND4G0I4",
+          "name": "Auth Alpaca API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "=https://paper-api.alpaca.markets/v2/positions/{{ $json.symbol }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "options": {}
+      },
+      "id": "58f77dd1-a5de-4468-9eb1-dc69cb1e785f",
+      "name": "Close Position",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        224,
+        208
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "9QJ6HFd2VND4G0I4",
+          "name": "Auth Alpaca API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "356747848",
+        "text": "=🤖 *Trading Bot Alert*\n\n{{ $json.message }}\n\nSymbol: `{{ $json.symbol }}`\nEMA5: `{{ $json.ema5.toFixed(2) }}`\nEMA20: `{{ $json.ema20.toFixed(2) }}`\nPrice: `{{ $json.currentPrice.toFixed(2) }}`",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "fabd8482-e31f-46b8-be15-42ea2059e967",
+      "name": "Telegram Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        448,
+        112
+      ],
+      "webhookId": "e3c6bb58-0a65-4b0d-9fee-08f4c1127bf8",
+      "credentials": {
+        "telegramApi": {
+          "id": "NeCkDlU3OGIVsHG0",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=INSERT INTO trades (timestamp, symbol, action, price, ema5, ema20, crossover, message, pnl_percent) VALUES ('{{ $json.timestamp }}', '{{ $json.symbol }}', '{{ $json.action }}', {{ $json.currentPrice }}, {{ $json.ema5 }}, {{ $json.ema20 }}, '{{ $json.crossover }}', '{{ $json.message }}', {{ $json.pnlPercent || 'NULL' }})",
+        "options": {}
+      },
+      "id": "52950217-3683-4b71-9abc-32ae3850c605",
+      "name": "Log to PostgreSQL",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        448,
+        304
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "Cg19dKBPWwzZgtn2",
+          "name": "PostgreSQL Trading"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every Minute": {
+      "main": [
+        [
+          {
+            "node": "Get OHLC Bars",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get OHLC Bars": {
+      "main": [
+        [
+          {
+            "node": "Calculate EMA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate EMA": {
+      "main": [
+        [
+          {
+            "node": "Detect Signal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detect Signal": {
+      "main": [
+        [
+          {
+            "node": "If Buy",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "If Sell",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Buy": {
+      "main": [
+        [
+          {
+            "node": "Place Buy Order",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Sell": {
+      "main": [
+        [
+          {
+            "node": "Close Position",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Place Buy Order": {
+      "main": [
+        [
+          {
+            "node": "Telegram Alert",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log to PostgreSQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Close Position": {
+      "main": [
+        [
+          {
+            "node": "Telegram Alert",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log to PostgreSQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "761f1737ead169f86632b637ef0da6362172a07a6a3e5de45f80125c04107994"
+  }
+}
