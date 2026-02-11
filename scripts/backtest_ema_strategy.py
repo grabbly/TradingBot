@@ -12,11 +12,11 @@ from collections import defaultdict
 
 # DB config
 DB_CONFIG = {
-    'host': os.environ.get('PGHOST', 'localhost'),
-    'port': int(os.environ.get('PGPORT', '5432')),
-    'dbname': os.environ.get('PGDATABASE', 'trading_bot'),
-    'user': os.environ.get('PGUSER', 'n8n_user'),
-    'password': os.environ.get('PGPASSWORD', '***REMOVED***'),
+    'host': os.environ.get('POSTGRES_HOST', 'localhost'),
+    'port': int(os.environ.get('POSTGRES_PORT', '5432')),
+    'dbname': os.environ.get('POSTGRES_DB', 'trading_bot'),
+    'user': os.environ.get('POSTGRES_USER'),
+    'password': os.environ.get('POSTGRES_PASSWORD'),
 }
 
 # Strategy config

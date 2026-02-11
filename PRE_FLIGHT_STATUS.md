@@ -11,7 +11,7 @@
 4. **Python venv** - ✅ Active with all dependencies
 5. **Dependencies** - ✅ Installed (pandas, numpy, alpaca-py, transformers, torch, etc.)
 6. **Alpaca API** - ✅ Connected (Paper account: $198,999.79 buying power)
-7. **PostgreSQL** - ✅ Connected (***REMOVED***:5432)
+7. **PostgreSQL** - ✅ Connected (192.168.1.3:5432)
 8. **EODHD API** - ✅ Connected with valid key
 9. **Data Directory** - ✅ Created
 

@@ -99,6 +99,10 @@ def fetch_news_for_symbol(symbol, from_date, to_date, limit=50):
 
 def generate_sentiment_proxy():
     """Generate sentiment proxy for all symbols and dates"""
+
+    if not EODHD_API_KEY:
+        print("\n❌ EODHD_API_KEY is not set. Please configure it in your environment or .env file before running this script.")
+        return None
     
     # Initialize FinBERT
     analyzer = SentimentAnalyzer()
@@ -258,9 +262,12 @@ if __name__ == "__main__":
         if response.lower() != 'y':
             print("Aborted.")
             exit(0)
-    
+
     # Generate sentiment proxy
     df = generate_sentiment_proxy()
-    
+    if df is None:
+        print("\n⚠️  Sentiment proxy generation did not complete due to configuration issues.")
+        exit(1)
+	
     print("\n🎉 Task 1.1.2 complete!")
     print(f"Next: Task 1.1.3 - Create backtest script")

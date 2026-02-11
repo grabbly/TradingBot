@@ -10,12 +10,12 @@
           ]
         }
       },
-      "id": "a14638d3-390b-40c1-b43e-9aa206f9a85f",
+      "id": "20a93d41-386d-42a2-baf8-78f966f30b3f",
       "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "position": [
-        30576,
-        4832
+        -112,
+        368
       ],
       "typeVersion": 1.2
     },
@@ -44,12 +44,12 @@
         },
         "options": {}
       },
-      "id": "070677bd-094f-4096-8253-c29b446518cf",
+      "id": "fd63dc52-12c6-4e0d-8872-f89b684b3e0a",
       "name": "If Weekday (Mon-Fri)",
       "type": "n8n-nodes-base.if",
       "position": [
-        30800,
-        4832
+        112,
+        368
       ],
       "typeVersion": 2.2
     },
@@ -66,12 +66,12 @@
         },
         "options": {}
       },
-      "id": "5464e7eb-60a5-4caf-82b7-e8b66ae04317",
+      "id": "b2908136-c72a-4c04-8e41-9fbc105e81d5",
       "name": "Alpaca-get-account-info",
       "type": "n8n-nodes-base.httpRequest",
       "position": [
-        31024,
-        4832
+        336,
+        368
       ],
       "executeOnce": true,
       "typeVersion": 4.2,
@@ -88,13 +88,13 @@
         "query": "INSERT INTO account_balance (date, balance, change)\nVALUES (\nCURRENT_DATE,\n{{ $json.equity }},\n{{ ($json.equity - $json.last_equity) / $json.last_equity }}\n)\nON CONFLICT (date) DO UPDATE SET\n  balance = EXCLUDED.balance,\n  change = EXCLUDED.change",
         "options": {}
       },
-      "id": "bd194e59-c2ad-4d71-b758-f6fd7f58e8c7",
+      "id": "55b11621-0bd0-408f-9415-89b0ff42ddaf",
       "name": "save_account_balance",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        31248,
-        4832
+        560,
+        368
       ],
       "credentials": {
         "postgres": {
@@ -109,13 +109,13 @@
         "query": "SELECT MAX(balance) AS max_balance\nFROM account_balance\nWHERE date >= CURRENT_DATE - INTERVAL '30 days'",
         "options": {}
       },
-      "id": "5dc053e9-c58c-4849-a29f-fa003665e443",
+      "id": "1d2e3f40-5a6b-7c8d-9e0f-1a2b3c4d5e6f",
       "name": "get_max_balance_30d",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        31472,
-        4832
+        672,
+        368
       ],
       "credentials": {
         "postgres": {
@@ -128,13 +128,13 @@
       "parameters": {
         "jsCode": "const acct = $items('Alpaca-get-account-info')[0]?.json || {};\nconst equity = Number(acct.equity || acct.last_equity || 0);\nconst maxBal = Number($json.max_balance || 0);\n\nif (!equity || !maxBal) {\n  return { json: { skip_trading: false, drawdown: 0, equity, max_balance: maxBal } };\n}\n\nconst drawdown = (maxBal - equity) / maxBal;\nconst skip = drawdown >= 0.10;\n\nreturn { json: { skip_trading: skip, drawdown, equity, max_balance: maxBal } };"
       },
-      "id": "7c960a31-eb54-4881-8833-ac86a2683fa2",
+      "id": "2f3a4b5c-6d7e-8f90-a1b2-c3d4e5f60718",
       "name": "check_drawdown_limit",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        31696,
-        4832
+        784,
+        368
       ]
     },
     {
@@ -158,12 +158,12 @@
         },
         "options": {}
       },
-      "id": "ea909fcb-5f32-4b48-9ed1-fc48e43f1fb4",
+      "id": "3a4b5c6d-7e8f-901a-b2c3-d4e5f6071829",
       "name": "If_Drawdown_Exceeded",
       "type": "n8n-nodes-base.if",
       "position": [
-        31920,
-        4832
+        896,
+        368
       ],
       "typeVersion": 2.2
     },
@@ -172,22 +172,20 @@
         "chatId": "356747848",
         "text": "=⛔ *Trading Paused*\n\nReason: Drawdown limit exceeded (>=10%)\n\nEquity: ${{ Number($json.equity || 0).toFixed(2) }}\nMax (30d): ${{ Number($json.max_balance || 0).toFixed(2) }}\nDrawdown: {{ (Number($json.drawdown || 0) * 100).toFixed(2) }}%\n\n⏰ {{ $now.toFormat('HH:mm:ss') }}",
         "additionalFields": {
-          "appendAttribution": false,
           "parse_mode": "Markdown"
         }
       },
-      "id": "944e9272-3a3a-4bee-807b-7b2a76d577a5",
+      "id": "4b5c6d7e-8f90-1a2b-3c4d-5e6f708192a3",
       "name": "Telegram_Drawdown_Alert",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        32144,
-        4736
+        1008,
+        272
       ],
-      "webhookId": "281eaa8d-00f5-4935-bd26-329059cb367e",
       "credentials": {
         "telegramApi": {
-          "id": "mY5qmXRCM1fJhjE0",
+          "id": "NeCkDlU3OGIVsHG0",
           "name": "Telegram account"
         }
       }
@@ -198,12 +196,12 @@
         "query": "SELECT \n  ss.symbol AS stock,\n  ROUND(AVG(ss.sentiment_score), 4) AS \"sentimentScore\",\n  MAX(ss.rationale) FILTER (WHERE ss.date = CURRENT_DATE) AS rationale,\n  ts.active\nFROM sentiment_scores ss\nINNER JOIN tracked_symbols ts ON ss.symbol = ts.symbol\nWHERE ss.date >= CURRENT_DATE - INTERVAL '2 days'\n  AND ts.active = true\nGROUP BY ss.symbol, ts.active\nORDER BY AVG(ss.sentiment_score) DESC",
         "options": {}
       },
-      "id": "c69b0882-eded-4320-be9a-2cbb60d59e5a",
+      "id": "69b362c2-649d-4f13-912a-c2413f980548",
       "name": "get_sentiment_scores",
       "type": "n8n-nodes-base.postgres",
       "position": [
-        32144,
-        4928
+        784,
+        368
       ],
       "typeVersion": 2.4,
       "credentials": {
@@ -217,12 +215,12 @@
       "parameters": {
         "jsCode": "const items = $input.all();\n\nconst today = $now.setZone('America/New_York').toISODate();\n\n// TODO: Fill actual dates (YYYY-MM-DD)\nconst fomcDates = [];\nconst earningsBySymbol = {};\n\nfunction isWithinWindow(targetDate) {\n  const t = new Date(targetDate);\n  const d = new Date(today);\n  const diffDays = Math.abs((t - d) / (1000 * 60 * 60 * 24));\n  return diffDays <= 1;\n}\n\nlet reason = null;\nfor (const d of fomcDates) {\n  if (isWithinWindow(d)) {\n    reason = `FOMC window around ${d}`;\n    break;\n  }\n}\n\nif (!reason) {\n  for (const item of items) {\n    const symbol = item.json.stock;\n    const dates = earningsBySymbol[symbol] || [];\n    const match = dates.find(isWithinWindow);\n    if (match) {\n      reason = `Earnings window for ${symbol} around ${match}`;\n      break;\n    }\n  }\n}\n\nif (reason) {\n  return [{ json: { skip_trading: true, reason } }];\n}\n\nreturn items;"
       },
-      "id": "2f6c8031-328f-4dec-8524-ea387fc95e90",
+      "id": "6a2f9c1b-7e0b-4cf0-9b55-4f4f1a7d2d01",
       "name": "Macro_Event_Gate",
       "type": "n8n-nodes-base.code",
       "position": [
-        32368,
-        4928
+        1008,
+        368
       ],
       "typeVersion": 2
     },
@@ -247,12 +245,12 @@
         },
         "options": {}
       },
-      "id": "9d79cff2-23dc-4505-aed6-42c84e7c1476",
+      "id": "7b3f9d2c-8f1c-4d12-9c66-5f5f2b8e3e02",
       "name": "If_Skip_Trading",
       "type": "n8n-nodes-base.if",
       "position": [
-        32592,
-        4928
+        1232,
+        368
       ],
       "typeVersion": 2.2
     },
@@ -261,22 +259,20 @@
         "chatId": "356747848",
         "text": "=⚠️ *Macro Event Filter*\n\nReason: {{ $json.reason }}\n\n⏰ {{ $now.toFormat('HH:mm:ss') }}",
         "additionalFields": {
-          "appendAttribution": false,
           "parse_mode": "Markdown"
         }
       },
-      "id": "b0f7cb2b-81e4-41f1-86b6-33c23e830254",
+      "id": "8c4f0e3d-9f2d-4e23-9d77-6f6f3c9f4f03",
       "name": "Telegram_Macro_Filter_Alert",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        32816,
-        4928
+        1456,
+        272
       ],
-      "webhookId": "e86a8fc0-341b-49b1-a7b5-90ab8b47950d",
       "credentials": {
         "telegramApi": {
-          "id": "mY5qmXRCM1fJhjE0",
+          "id": "NeCkDlU3OGIVsHG0",
           "name": "Telegram account"
         }
       }
@@ -287,12 +283,12 @@
         "query": "WITH latest AS (\n  SELECT symbol, MAX(timestamp) AS ts\n  FROM ema_snapshots\n  GROUP BY symbol\n)\nSELECT e.symbol, e.close_price, e.ema9, e.ema21, e.ema200, e.rsi14, e.volume, e.volume_ma20\nFROM ema_snapshots e\nJOIN latest l ON e.symbol = l.symbol AND e.timestamp = l.ts",
         "options": {}
       },
-      "id": "d03051af-c120-486e-ac06-201144010e4a",
+      "id": "a8b7f2a1-4b1e-4b2c-9b7a-5a3b2c1d0e9f",
       "name": "get_latest_ema",
       "type": "n8n-nodes-base.postgres",
       "position": [
-        32816,
-        5120
+        1456,
+        368
       ],
       "typeVersion": 2.4,
       "credentials": {
@@ -306,12 +302,12 @@
       "parameters": {
         "jsCode": "const sentimentItems = $items('get_sentiment_scores');\nconst emaItems = $items('get_latest_ema');\n\nconst emaMap = new Map(emaItems.map(item => [item.json.symbol, item.json]));\n\nconst withEmaFilter = sentimentItems\n  .filter(item => {\n    const ema = emaMap.get(item.json.stock);\n    if (!ema) return false;\n    if (ema.close_price == null || ema.ema9 == null || ema.ema21 == null) return false;\n    if (ema.rsi14 == null || ema.volume == null || ema.volume_ma20 == null) return false;\n    const emaOk = Number(ema.ema9) > Number(ema.ema21);\n    const rsiOk = Number(ema.rsi14) < 70;\n    const volumeOk = Number(ema.volume) > Number(ema.volume_ma20);\n    return emaOk && rsiOk && volumeOk;\n  })\n  .map(item => ({\n    json: {\n      ...item.json,\n      ema: emaMap.get(item.json.stock),\n      ema_filter_applied: true\n    }\n  }));\n\nconst baseList = withEmaFilter.length > 0 ? withEmaFilter : sentimentItems;\nconst sortedItems = baseList.sort((a, b) => b.json.sentimentScore - a.json.sentimentScore);\n\nconst maxPerSector = 2;\nconst sectorCounts = new Map();\nconst topItems = [];\n\nfor (const item of sortedItems) {\n  const sector = item.json.sector || 'Unknown';\n  const count = sectorCounts.get(sector) || 0;\n  if (count >= maxPerSector) continue;\n  topItems.push(item);\n  sectorCounts.set(sector, count + 1);\n  if (topItems.length >= 4) break;\n}\n\nreturn topItems"
       },
-      "id": "053e6ff8-11ad-4ba6-aca5-06d369df0b93",
+      "id": "83842ebb-61b9-4a46-ac49-cda85dbb7399",
       "name": "filter_top_sentiment_score",
       "type": "n8n-nodes-base.code",
       "position": [
-        33040,
-        5120
+        1232,
+        368
       ],
       "typeVersion": 2
     },
@@ -328,12 +324,12 @@
         },
         "options": {}
       },
-      "id": "2ba413ef-9e2b-4827-9f93-2213b8349485",
+      "id": "2c29a945-8788-4fa5-8e4e-f22a69e5df42",
       "name": "Alpaca_get_open_positions",
       "type": "n8n-nodes-base.httpRequest",
       "position": [
-        33264,
-        5120
+        1232,
+        368
       ],
       "executeOnce": true,
       "typeVersion": 4.2,
@@ -347,14 +343,14 @@
     },
     {
       "parameters": {
-        "jsCode": "const openPositions = $('Alpaca_get_open_positions').all();\nconst topSentiment = $('filter_top_sentiment_score').all();\nconst account = $('Alpaca-get-account-info').first()?.json ?? {};\n\n// Отфильтровать пустые элементы (которые появляются при alwaysOutputData, когда позиций нет)\nconst validOpenPositions = openPositions.filter(pos => pos.json && pos.json.symbol);\n\nconst openPositionSymbols = validOpenPositions.map(pos => pos.json.symbol);\nconst topSentimentSymbols = topSentiment.map(sen => sen.json.stock);\n\nconst positionsNotInTopSentiment = validOpenPositions\n  .filter(pos => !topSentimentSymbols.includes(pos.json.symbol))\n  .map(pos => ({\n    symbol: pos.json.symbol,\n    market_value: pos.json.market_value,\n    qty: pos.json.qty,\n    asset_id: pos.json.asset_id\n  }));\n\nconst symbolsNotInOpenPositions = topSentiment\n  .filter(sen => !openPositionSymbols.includes(sen.json.stock))\n  .map(sen => ({\n    symbol: sen.json.stock,\n  }));\n\nconst totalMarketValue = positionsNotInTopSentiment.reduce((sum, pos) => sum + (parseFloat(pos.market_value) || 0), 0);\n\n// V2: если продавать нечего (портфель пустой или уже соответствует топ-4), используем свободные деньги для первой покупки\nconst availableCash = parseFloat(account.cash ?? account.buying_power ?? '0') || 0;\nconst equity = parseFloat(account.equity ?? account.last_equity ?? availableCash) || 0;\nconst totalBudget = totalMarketValue > 0 ? totalMarketValue : availableCash;\n\n// Risk management (Phase 4)\nconst stopLossPercent = 0.02; // 2% SL\nconst takeProfitPercent = 0.04; // 4% TP (2:1)\n\n// Fixed position size: $500 per symbol (min for expensive stocks like AAPL ~$280)\nconst valuePerSymbol = 500;\n\n// Old percentage-based logic (disabled):\n// const riskPercent = 0.01; // 1% risk per trade\n// const maxPositionPercent = 0.25; // cap 25% of equity\n// const riskDollars = equity * riskPercent;\n// const baseNotional = stopLossPercent > 0 ? (riskDollars / stopLossPercent) : 0;\n// const maxNotional = equity * maxPositionPercent;\n// const perSymbolBudget = symbolsNotInOpenPositions.length > 0\n//   ? totalBudget / symbolsNotInOpenPositions.length\n//   : 0;\n// const valuePerSymbol = Math.max(0, Math.min(baseNotional, maxNotional, perSymbolBudget));\n\nconst symbolsWithMarketValue = symbolsNotInOpenPositions.map(item => ({\n  ...item,\n  market_value_per_symbol: valuePerSymbol,\n  stop_loss_percent: stopLossPercent,\n  take_profit_percent: takeProfitPercent\n}));\n\nconst hasPositionsToOpen = symbolsWithMarketValue.length > 0 && valuePerSymbol > 0;\n\nreturn [\n  {\n    json: {\n      positions_not_in_top_sentiment: positionsNotInTopSentiment,\n      symbols_not_in_open_positions: symbolsWithMarketValue,\n      has_positions_to_close: positionsNotInTopSentiment.length > 0,\n      has_positions_to_open: hasPositionsToOpen\n    }\n  }\n];"
+        "jsCode": "const openPositions = $('Alpaca_get_open_positions').all();\nconst topSentiment = $('filter_top_sentiment_score').all();\nconst account = $('Alpaca-get-account-info').first()?.json ?? {};\n\n// Отфильтровать пустые элементы (которые появляются при alwaysOutputData, когда позиций нет)\nconst validOpenPositions = openPositions.filter(pos => pos.json && pos.json.symbol);\n\nconst openPositionSymbols = validOpenPositions.map(pos => pos.json.symbol);\nconst topSentimentSymbols = topSentiment.map(sen => sen.json.stock);\n\nconst positionsNotInTopSentiment = validOpenPositions\n  .filter(pos => !topSentimentSymbols.includes(pos.json.symbol))\n  .map(pos => ({\n    symbol: pos.json.symbol,\n    market_value: pos.json.market_value,\n    qty: pos.json.qty,\n    asset_id: pos.json.asset_id\n  }));\n\nconst symbolsNotInOpenPositions = topSentiment\n  .filter(sen => !openPositionSymbols.includes(sen.json.stock))\n  .map(sen => ({\n    symbol: sen.json.stock,\n  }));\n\nconst totalMarketValue = positionsNotInTopSentiment.reduce((sum, pos) => sum + (parseFloat(pos.market_value) || 0), 0);\n\n// V2: если продавать нечего (портфель пустой или уже соответствует топ-4), используем свободные деньги для первой покупки\nconst availableCash = parseFloat(account.cash ?? account.buying_power ?? '0') || 0;\nconst equity = parseFloat(account.equity ?? account.last_equity ?? availableCash) || 0;\nconst totalBudget = totalMarketValue > 0 ? totalMarketValue : availableCash;\n\n// Risk management (Phase 4)\nconst riskPercent = 0.01; // 1% risk per trade\nconst stopLossPercent = 0.02; // 2% SL\nconst takeProfitPercent = 0.04; // 4% TP (2:1)\nconst maxPositionPercent = 0.25; // cap 25% of equity\n\nconst riskDollars = equity * riskPercent;\nconst baseNotional = stopLossPercent > 0 ? (riskDollars / stopLossPercent) : 0;\nconst maxNotional = equity * maxPositionPercent;\nconst perSymbolBudget = symbolsNotInOpenPositions.length > 0\n  ? totalBudget / symbolsNotInOpenPositions.length\n  : 0;\nconst valuePerSymbol = Math.max(0, Math.min(baseNotional, maxNotional, perSymbolBudget));\n\nconst symbolsWithMarketValue = symbolsNotInOpenPositions.map(item => ({\n  ...item,\n  market_value_per_symbol: valuePerSymbol,\n  stop_loss_percent: stopLossPercent,\n  take_profit_percent: takeProfitPercent\n}));\n\nconst hasPositionsToOpen = symbolsWithMarketValue.length > 0 && valuePerSymbol > 0;\n\nreturn [\n  {\n    json: {\n      positions_not_in_top_sentiment: positionsNotInTopSentiment,\n      symbols_not_in_open_positions: symbolsWithMarketValue,\n      has_positions_to_close: positionsNotInTopSentiment.length > 0,\n      has_positions_to_open: hasPositionsToOpen\n    }\n  }\n];"
       },
-      "id": "8d1c7a18-6089-456c-af69-5c6b431dda05",
+      "id": "dbc4280b-e93b-406c-8c69-d978f55bfc5b",
       "name": "create_positions_to_close_and_positions_two_open",
       "type": "n8n-nodes-base.code",
       "position": [
-        33488,
-        5120
+        1456,
+        368
       ],
       "typeVersion": 2
     },
@@ -383,12 +379,12 @@
         },
         "options": {}
       },
-      "id": "04cdc766-125f-4279-97c9-cea99705c963",
+      "id": "55cc57c5-e76c-4292-8d5a-d0447a39a094",
       "name": "check_has_positions_to_close",
       "type": "n8n-nodes-base.if",
       "position": [
-        34384,
-        4832
+        1904,
+        272
       ],
       "typeVersion": 2.2
     },
@@ -417,12 +413,12 @@
         },
         "options": {}
       },
-      "id": "d3b52c01-f0df-4fb1-92a0-bfb93d64b8f5",
+      "id": "319a5293-54e3-4967-a5c2-19ad096e8ad1",
       "name": "check_has_positions_to_open",
       "type": "n8n-nodes-base.if",
       "position": [
-        33712,
-        5024
+        1680,
+        464
       ],
       "typeVersion": 2.2
     },
@@ -431,57 +427,14 @@
         "fieldToSplitOut": "positions_not_in_top_sentiment",
         "options": {}
       },
-      "id": "bd947b68-da43-4899-8ad5-b29558ef0b1d",
+      "id": "08ea55bc-f3a7-4cc2-b60f-67b3155b3b3e",
       "name": "positions_to_close",
       "type": "n8n-nodes-base.splitOut",
       "position": [
-        34608,
-        4832
+        2128,
+        272
       ],
       "typeVersion": 1
-    },
-    {
-      "parameters": {
-        "method": "DELETE",
-        "url": "=https://paper-api.alpaca.markets/v2/orders?symbols={{ $('positions_to_close').item.json.symbol }}",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpCustomAuth",
-        "sendQuery": true,
-        "queryParameters": {
-          "parameters": [
-            {}
-          ]
-        },
-        "options": {}
-      },
-      "id": "cancel_orders_before_sell",
-      "name": "Cancel_Orders_Before_Sell",
-      "type": "n8n-nodes-base.httpRequest",
-      "position": [
-        34832,
-        4600
-      ],
-      "typeVersion": 4.2,
-      "credentials": {
-        "httpCustomAuth": {
-          "id": "GMo7eqsdOII9unPE",
-          "name": "Custom Auth account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "amount": 2
-      },
-      "id": "wait_before_close",
-      "name": "Wait_Before_Close",
-      "type": "n8n-nodes-base.wait",
-      "position": [
-        35056,
-        4600
-      ],
-      "webhookId": "wait-before-close-webhook",
-      "typeVersion": 1.1
     },
     {
       "parameters": {
@@ -497,12 +450,12 @@
         },
         "options": {}
       },
-      "id": "76bdd886-4bdb-4b8b-b9b1-609a8647cb55",
+      "id": "c17e8b91-ec8d-4b66-8e83-d939e703da0f",
       "name": "Alpaca-post-order-sell",
       "type": "n8n-nodes-base.httpRequest",
       "position": [
-        35280,
-        4600
+        2352,
+        272
       ],
       "typeVersion": 4.2,
       "credentials": {
@@ -517,25 +470,26 @@
         "fieldToSplitOut": "symbols_not_in_open_positions",
         "options": {}
       },
-      "id": "a402fc13-be59-4a13-878d-625e2ab3f79d",
+      "id": "4108f23e-353b-4748-931d-3c813cb84442",
       "name": "positions_to_open",
       "type": "n8n-nodes-base.splitOut",
       "position": [
-        33936,
-        5024
+        1904,
+        464
       ],
       "typeVersion": 1
     },
     {
       "parameters": {
-        "amount": 10
+        "amount": 10,
+        "unit": "seconds"
       },
-      "id": "3c321c69-72ea-4467-868a-88e53320f15a",
+      "id": "1cb43515-8d3b-40f8-b7f7-d1af227cbbf8",
       "name": "Wait",
       "type": "n8n-nodes-base.wait",
       "position": [
-        34384,
-        5024
+        2128,
+        464
       ],
       "webhookId": "3d1031f5-7a20-4c3a-8791-748e93830402",
       "typeVersion": 1.1
@@ -549,12 +503,12 @@
           "timeout": 10000
         }
       },
-      "id": "55128d56-c0bd-4c24-b295-c638c868a035",
+      "id": "7a2c4f0d-8b1e-4c5d-9e7f-0a1b2c3d4e5f",
       "name": "Alpaca_Get_Latest_Trade",
       "type": "n8n-nodes-base.httpRequest",
       "position": [
-        34608,
-        5024
+        2352,
+        464
       ],
       "typeVersion": 4.2,
       "alwaysOutputData": true,
@@ -567,14 +521,14 @@
     },
     {
       "parameters": {
-        "jsCode": "const symbol = $('positions_to_open').item.json.symbol;\nconst notional = Number($('positions_to_open').item.json.market_value_per_symbol || 0);\nconst stopLossPercent = Number($('positions_to_open').item.json.stop_loss_percent || 0.02);\nconst takeProfitPercent = Number($('positions_to_open').item.json.take_profit_percent || 0.04);\n\nconst price = Number($json.trade?.p || $json.last?.p || $json.p || 0);\nif (!price || !notional) {\n  return { json: { symbol, qty: 0, notional, price, stop_price: null, take_profit: null, skip: true } };\n}\n\n// Bracket orders require whole shares (integer qty)\nconst qty = Math.floor(notional / price);\n\n// Skip if qty=0 (notional too small for this price)\nif (qty === 0) {\n  return { json: { symbol, qty: 0, notional, price, stop_price: null, take_profit: null, skip: true } };\n}\nconst actualNotional = qty * price;\nconst stop_price = Number((price * (1 - stopLossPercent)).toFixed(2));\nconst take_profit = Number((price * (1 + takeProfitPercent)).toFixed(2));\n\nreturn {\n  json: {\n    symbol,\n    qty,\n    notional: actualNotional,\n    price,\n    stop_price,\n    take_profit\n  }\n};"
+        "jsCode": "const symbol = $('positions_to_open').item.json.symbol;\nconst notional = Number($('positions_to_open').item.json.market_value_per_symbol || 0);\nconst stopLossPercent = Number($('positions_to_open').item.json.stop_loss_percent || 0.02);\nconst takeProfitPercent = Number($('positions_to_open').item.json.take_profit_percent || 0.04);\n\nconst price = Number($json.trade?.p || $json.last?.p || $json.p || 0);\nif (!price || !notional) {\n  return { json: { symbol, qty: 0, notional, price, stop_price: null, take_profit: null } };\n}\n\nconst qty = Number((notional / price).toFixed(6));\nconst stop_price = Number((price * (1 - stopLossPercent)).toFixed(2));\nconst take_profit = Number((price * (1 + takeProfitPercent)).toFixed(2));\n\nreturn {\n  json: {\n    symbol,\n    qty,\n    notional,\n    price,\n    stop_price,\n    take_profit\n  }\n};"
       },
-      "id": "6d0ebc0a-d02b-4e29-b1d0-49ceffbd7a64",
+      "id": "0b1c2d3e-4f5a-6b7c-8d9e-0f1a2b3c4d5e",
       "name": "Build_Bracket_Order",
       "type": "n8n-nodes-base.code",
       "position": [
-        34832,
-        5024
+        2576,
+        464
       ],
       "typeVersion": 2
     },
@@ -635,12 +589,12 @@
         },
         "options": {}
       },
-      "id": "431c8726-8c89-41ba-ba69-8e6db8c8363c",
+      "id": "faf661b4-107f-48fc-b1cc-bbe66da80ab9",
       "name": "Alpaca-post-order-buy",
       "type": "n8n-nodes-base.httpRequest",
       "position": [
-        35056,
-        5024
+        2352,
+        464
       ],
       "typeVersion": 4.2,
       "credentials": {
@@ -655,22 +609,20 @@
         "chatId": "356747848",
         "text": "=🔴 *SELL ORDER* 🔴\n\n📊 Symbol: `{{ $('positions_to_close').item.json.symbol }}`\n💵 Value: ${{ Number($('positions_to_close').item.json.market_value).toFixed(2) }}\n📉 Reason: Not in top-4 sentiment\n\n⏰ {{ $now.toFormat('HH:mm:ss') }}",
         "additionalFields": {
-          "appendAttribution": false,
           "parse_mode": "Markdown"
         }
       },
-      "id": "d52b1d22-0334-4baf-8b60-d713a33f591b",
+      "id": "telegram-sell-alert",
       "name": "Telegram_Sell_Alert",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        34832,
-        4832
+        2240,
+        272
       ],
-      "webhookId": "234bf463-d8df-45db-99dd-ef4f055e4811",
       "credentials": {
         "telegramApi": {
-          "id": "mY5qmXRCM1fJhjE0",
+          "id": "NeCkDlU3OGIVsHG0",
           "name": "Telegram account"
         }
       }
@@ -680,49 +632,47 @@
         "chatId": "356747848",
         "text": "=🟢 *BUY ORDER* 🟢\n\n📊 Symbol: `{{ $('positions_to_open').item.json.symbol }}`\n💵 Value: ${{ Number($('positions_to_open').item.json.market_value_per_symbol).toFixed(2) }}\n📈 Reason: Top-4 sentiment\n\n⏰ {{ $now.toFormat('HH:mm:ss') }}",
         "additionalFields": {
-          "appendAttribution": false,
           "parse_mode": "Markdown"
         }
       },
-      "id": "39fdea0c-3bb1-431a-983a-6205a4b5bad8",
+      "id": "telegram-buy-alert",
       "name": "Telegram_Buy_Alert",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        34160,
-        5024
+        2016,
+        464
       ],
-      "webhookId": "069fdb3a-386e-40f8-a853-c4b29657968c",
       "credentials": {
         "telegramApi": {
-          "id": "mY5qmXRCM1fJhjE0",
+          "id": "NeCkDlU3OGIVsHG0",
           "name": "Telegram account"
         }
       }
     },
     {
       "parameters": {},
-      "id": "79665432-516d-4555-a51b-f42fcf983b90",
+      "id": "468f4853-acf1-4802-bdaf-c7902881652f",
       "name": "merge_orders_to_write_to_sheets",
       "type": "n8n-nodes-base.merge",
       "position": [
-        35280,
-        4928
+        2576,
+        368
       ],
       "typeVersion": 3.2
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO positions (date, symbol, order_type, value)\nVALUES (\n  CURRENT_DATE,\n  '{{ $json.symbol }}',\n  '{{ $json.side }}',\n  {{ $json.side == 'buy' ? (Number($json.qty || 0) * Number($json.filled_avg_price || $json.limit_price || 0)) : Number($('positions_to_close').item.json.market_value || 0) }}\n)",
+        "query": "INSERT INTO positions (date, symbol, order_type, value)\nVALUES (\n  CURRENT_DATE,\n  '{{ $json.symbol }}',\n  '{{ $json.side }}',\n  {{ $json.side == 'buy' ? $json.notional : $('positions_to_close').item.json.market_value }}\n)",
         "options": {}
       },
-      "id": "44e4fe7c-6f9e-4bce-8ef7-61c13ef59d23",
+      "id": "5b5b4a9e-0b6d-4c1b-8f3a-9d7f8e2c3f4a",
       "name": "save_positions_to_db",
       "type": "n8n-nodes-base.postgres",
       "position": [
-        35504,
-        4928
+        2800,
+        368
       ],
       "typeVersion": 2.4,
       "credentials": {
@@ -739,13 +689,13 @@
         "genericAuthType": "httpCustomAuth",
         "options": {}
       },
-      "id": "d32325a4-036d-4a1d-9ab3-042e817a98aa",
+      "id": "get-portfolio-summary",
       "name": "Get_Portfolio_Summary",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        35728,
-        5120
+        3024,
+        368
       ],
       "credentials": {
         "httpCustomAuth": {
@@ -759,22 +709,20 @@
         "chatId": "356747848",
         "text": "=📊 *PORTFOLIO SUMMARY* 📊\n\n💰 Total Value: ${{ Number($json.equity).toFixed(2) }}\n📈 Daily P/L: ${{ Number($json.equity - $json.last_equity).toFixed(2) }} ({{ (($json.equity - $json.last_equity) / $json.last_equity * 100).toFixed(2) }}%)\n💵 Cash: ${{ Number($json.cash).toFixed(2) }}\n📦 Buying Power: ${{ Number($json.buying_power).toFixed(2) }}\n\n⏰ {{ $now.toFormat('HH:mm:ss') }}",
         "additionalFields": {
-          "appendAttribution": false,
           "parse_mode": "Markdown"
         }
       },
-      "id": "f8b8a098-2bc6-4087-911f-a86714e38562",
+      "id": "telegram-portfolio-summary",
       "name": "Telegram_Portfolio_Summary",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        35952,
-        5120
+        3248,
+        368
       ],
-      "webhookId": "feeb3c0b-cac3-4e9f-a484-4bda020ddc05",
       "credentials": {
         "telegramApi": {
-          "id": "mY5qmXRCM1fJhjE0",
+          "id": "NeCkDlU3OGIVsHG0",
           "name": "Telegram account"
         }
       }
@@ -786,12 +734,12 @@
         "width": 560,
         "color": 2
       },
-      "id": "61b7880a-98f1-4748-969f-d8d66962150f",
+      "id": "9c3bf852-2793-495a-baf3-0abed7071ba7",
       "name": "Sticky Note - V2",
       "type": "n8n-nodes-base.stickyNote",
       "position": [
-        30688,
-        4464
+        0,
+        0
       ],
       "typeVersion": 1
     },
@@ -830,12 +778,12 @@
         },
         "options": {}
       },
-      "id": "cf997ca8-6d6b-409b-a3c9-66b55a817caf",
+      "id": "check-no-trades",
       "name": "Check_No_Trades",
       "type": "n8n-nodes-base.if",
       "position": [
-        35504,
-        5192
+        1680,
+        560
       ],
       "typeVersion": 2.2,
       "notes": "Проверяет, что нет ни покупок, ни продаж -> отправляет summary напрямую"
@@ -1057,28 +1005,6 @@
       "main": [
         [
           {
-            "node": "Cancel_Orders_Before_Sell",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Cancel_Orders_Before_Sell": {
-      "main": [
-        [
-          {
-            "node": "Wait_Before_Close",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Wait_Before_Close": {
-      "main": [
-        [
-          {
             "node": "Alpaca-post-order-sell",
             "type": "main",
             "index": 0
@@ -1102,6 +1028,17 @@
         [
           {
             "node": "Telegram_Buy_Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram_Buy_Alert": {
+      "main": [
+        [
+          {
+            "node": "Wait",
             "type": "main",
             "index": 0
           }
@@ -1148,28 +1085,6 @@
             "node": "merge_orders_to_write_to_sheets",
             "type": "main",
             "index": 1
-          }
-        ]
-      ]
-    },
-    "Telegram_Sell_Alert": {
-      "main": [
-        [
-          {
-            "node": "Cancel_Orders_Before_Sell",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Telegram_Buy_Alert": {
-      "main": [
-        [
-          {
-            "node": "Wait",
-            "type": "main",
-            "index": 0
           }
         ]
       ]
@@ -1221,7 +1136,6 @@
   },
   "pinData": {},
   "meta": {
-    "templateCredsSetupCompleted": true,
     "instanceId": "2c5b1575ddd1ce97f568eb6f35b192523455a69713066ed09981997135e408e8"
   }
 }

@@ -1,0 +1,251 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {}
+          ]
+        }
+      },
+      "id": "15691dae-f49d-49b8-92e7-15a4460297e7",
+      "name": "Every 4 Hours",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -976,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT symbol, name FROM tracked_symbols WHERE active = true ORDER BY symbol",
+        "options": {}
+      },
+      "id": "09841fce-fd78-4b74-912a-1314e0575401",
+      "name": "Get Active Symbols",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        -752,
+        176
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "gdEjFpQ7Jf6e0OER",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "d90e23b8-3862-464e-bd09-b094124a096c",
+      "name": "Loop Over Symbols",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -528,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://www.reddit.com/search.json",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{ $json.symbol }} stock"
+            },
+            {
+              "name": "sort",
+              "value": "new"
+            },
+            {
+              "name": "t",
+              "value": "day"
+            },
+            {
+              "name": "limit",
+              "value": "10"
+            },
+            {
+              "name": "raw_json",
+              "value": "1"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "a990533e-3724-42f8-a9de-8187ae576a59",
+      "name": "Fetch Reddit",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -80,
+        288
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.data.children }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "notEmpty"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "89b40d49-fa6d-4bd5-ac47-4cf927dc3b6e",
+      "name": "If Reddit Has Posts",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        144,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const symbol = $('Loop Over Symbols').item.json.symbol;\nconst posts = ($json.data && $json.data.children) ? $json.data.children : [];\n\nreturn posts.map(p => {\n  const d = p.data || {};\n  const title = d.title || '';\n  const selftext = d.selftext || '';\n  return {\n    json: {\n      article_id: `reddit_${d.id}`,\n      symbol: symbol,\n      title: title.substring(0, 120),\n      content: `${title}\n${selftext}`.substring(0, 2000),\n      url: d.permalink ? `https://www.reddit.com${d.permalink}` : (d.url || ''),\n      published_at: d.created_utc ? new Date(d.created_utc * 1000).toISOString() : new Date().toISOString(),\n      source: 'Reddit'\n    }\n  };\n});"
+      },
+      "id": "bab2386b-3d20-4851-a499-dae1034deb13",
+      "name": "Prepare Reddit Posts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        368,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=INSERT INTO news_articles\n(article_id, symbol, title, content, url, published_at, source)\nVALUES\n('{{ $json.article_id }}', '{{ $json.symbol }}', '{{ $json.title.replace(/'/g, \"''\") }}', '{{ $json.content.replace(/'/g, \"''\") }}', '{{ $json.url }}', '{{ $json.published_at }}', '{{ $json.source }}')\nON CONFLICT (article_id) DO NOTHING",
+        "options": {}
+      },
+      "id": "c3a452d1-2cbb-4954-9f5e-7d01abc3f005",
+      "name": "Save Reddit to DB",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        592,
+        288
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "gdEjFpQ7Jf6e0OER",
+          "name": "Postgres account 2"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every 4 Hours": {
+      "main": [
+        [
+          {
+            "node": "Get Active Symbols",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Active Symbols": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Symbols",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Symbols": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Fetch Reddit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Reddit": {
+      "main": [
+        [
+          {
+            "node": "If Reddit Has Posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Reddit Has Posts": {
+      "main": [
+        [
+          {
+            "node": "Prepare Reddit Posts",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Over Symbols",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Reddit Posts": {
+      "main": [
+        [
+          {
+            "node": "Save Reddit to DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Reddit to DB": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Symbols",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "2c5b1575ddd1ce97f568eb6f35b192523455a69713066ed09981997135e408e8"
+  }
+}

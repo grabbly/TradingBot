@@ -1,54 +1,54 @@
 {
-  "name": "News Collector",
   "nodes": [
     {
       "parameters": {
         "rule": {
           "interval": [
-            {
-              "hoursInterval": 4
-            }
+            {}
           ]
         }
       },
-      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "id": "021d83d7-49f8-4e0b-bea8-ffb41185dbfb",
       "name": "Every 4 Hours",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
-        -880,
-        240
+        1232,
+        672
       ]
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT symbol, name FROM tracked_symbols WHERE active = true ORDER BY symbol"
+        "query": "SELECT symbol, name FROM tracked_symbols WHERE active = true ORDER BY symbol",
+        "options": {}
       },
-      "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+      "id": "26772f8b-92e7-4f5f-9141-c58db70e584b",
       "name": "Get Active Symbols",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        -656,
-        240
+        1456,
+        672
       ],
       "credentials": {
         "postgres": {
-          "id": "postgres_trading_bot",
-          "name": "PostgreSQL trading_bot"
+          "id": "gdEjFpQ7Jf6e0OER",
+          "name": "Postgres account 2"
         }
       }
     },
     {
-      "parameters": {},
-      "id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+      "parameters": {
+        "options": {}
+      },
+      "id": "ef89c172-c3fd-4396-9bef-b1208251802c",
       "name": "Loop Over Symbols",
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
-        -432,
-        240
+        1680,
+        672
       ]
     },
     {
@@ -76,23 +76,25 @@
               "value": "json"
             }
           ]
-        }
+        },
+        "options": {}
       },
-      "id": "d4e5f6a7-b8c9-0123-def1-234567890123",
+      "id": "b27f7656-6ba6-4307-baa8-d46dce0a010c",
       "name": "Fetch News from EODHD",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -208,
-        240
+        2016,
+        336
       ],
-      "alwaysOutputData": true,
+      "alwaysOutputData": false,
       "credentials": {
         "httpQueryAuth": {
-          "id": "1h1lwVLnfkYUuNNH",
-          "name": "Query Auth account"
+          "id": "F4tFvcl6SuBmMXgC",
+          "name": "EODHD_API_ Query Auth account"
         }
-      }
+      },
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -110,65 +112,221 @@
               }
             }
           ]
-        }
+        },
+        "options": {}
       },
-      "id": "e5f6a7b8-c9d0-1234-ef12-345678901234",
+      "id": "4946925c-4087-4046-8eac-5637eeee2108",
       "name": "If Has Articles",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        16,
-        240
+        2352,
+        448
       ]
     },
     {
       "parameters": {
         "jsCode": "// Extract articles and prepare for database insert\nconst articles = $input.all();\nconst symbol = $('Loop Over Symbols').item.json.symbol;\n\nconst result = articles.map(item => {\n  const article = item.json;\n  \n  // Generate article_id from URL or combination of fields\n  const articleId = article.link \n    ? article.link.split('/').pop() \n    : `${article.date}_${article.title.substring(0, 50).replace(/[^a-zA-Z0-9]/g, '_')}`;\n  \n  return {\n    json: {\n      article_id: articleId,\n      symbol: symbol,\n      title: article.title || '',\n      content: article.content || article.description || '',\n      url: article.link || '',\n      published_at: article.date || new Date().toISOString(),\n      source: article.source || 'EODHD'\n    }\n  };\n});\n\nreturn result;"
       },
-      "id": "f6a7b8c9-d0e1-2345-f123-456789012345",
+      "id": "983eb342-a514-48c8-837b-9eafee34e9a3",
       "name": "Prepare Articles",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        240,
-        160
+        2576,
+        320
       ]
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "=INSERT INTO news_articles \n(article_id, symbol, title, content, url, published_at, source)\nVALUES \n('{{ $json.article_id }}', '{{ $json.symbol }}', '{{ $json.title.replace(/'/g, \"''\") }}', '{{ $json.content.replace(/'/g, \"''\") }}', '{{ $json.url }}', '{{ $json.published_at }}', '{{ $json.source }}')\nON CONFLICT (article_id) DO NOTHING"
+        "query": "=INSERT INTO news_articles \n(article_id, symbol, title, content, url, published_at, source)\nVALUES \n('{{ $json.article_id }}', '{{ $json.symbol }}', '{{ $json.title.replace(/'/g, \"''\") }}', '{{ $json.content.replace(/'/g, \"''\") }}', '{{ $json.url }}', '{{ $json.published_at }}', '{{ $json.source }}')\nON CONFLICT (article_id) DO NOTHING",
+        "options": {}
       },
-      "id": "a7b8c9d0-e1f2-3456-1234-567890123456",
+      "id": "f57f9d30-70d6-4c53-aa31-183b737f3c67",
       "name": "Save to Database",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        464,
-        160
+        2800,
+        320
       ],
       "credentials": {
         "postgres": {
-          "id": "postgres_trading_bot",
-          "name": "PostgreSQL trading_bot"
+          "id": "gdEjFpQ7Jf6e0OER",
+          "name": "Postgres account 2"
         }
       }
     },
     {
       "parameters": {
         "content": "## News Collector\n\nCollects news articles every 4 hours:\n- Fetches 10 latest articles per symbol from EODHD\n- Stores in news_articles table\n- Automatic deduplication via UNIQUE constraint\n- Marks as unanalyzed (analyzed=false)",
-        "height": 320,
-        "width": 400,
+        "height": 416,
+        "width": 416,
         "color": 4
       },
-      "id": "b8c9d0e1-f2a3-4567-2345-678901234567",
+      "id": "0348515e-d4f9-403f-96ab-c4328280b28f",
       "name": "Sticky Note",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        -960,
-        80
+        1184,
+        432
       ]
+    },
+    {
+      "parameters": {
+        "url": "https://eodhd.com/api/news",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "s",
+              "value": "={{ $('Loop Over Symbols').item.json.symbol }}.US"
+            },
+            {
+              "name": "offset",
+              "value": "0"
+            },
+            {
+              "name": "limit",
+              "value": "10"
+            },
+            {
+              "name": "fmt",
+              "value": "json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c407b934-0489-4cbf-9b13-ffcb9272ea6b",
+      "name": "Fetch News from EODHD1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2016,
+        592
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "5waFDzBM5oGghXdc",
+          "name": "eodhd Query Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://finnhub.io/api/v1/company-news",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "symbol",
+              "value": "={{ $('Loop Over Symbols').item.json.symbol }}"
+            },
+            {
+              "name": "from",
+              "value": "={{ $now.minus({ days: 3 }).toFormat('yyyy-LL-dd') }}"
+            },
+            {
+              "name": "to",
+              "value": "={{ $now.toFormat('yyyy-LL-dd') }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "2350436d-60c9-4e3e-a8b4-3b2cb5db4ba2",
+      "name": "Fetch News from Finnhub",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3024,
+        464
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "UE6c4nNqRSFVJyJ4",
+          "name": "FINNHUB_API Query Auth account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ \n  (Array.isArray($json) && $json.length > 0) || \n  (Array.isArray($json.results) && $json.results.length > 0) ||\n  (Array.isArray($json.data) && $json.data.length > 0) ||\n  (typeof $json === 'object' && Object.keys($json).length > 0)\n}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              },
+              "id": "a5f542ec-a797-4e1c-bb15-2d2091538a48"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ec510878-cf25-4b76-a7d8-943c30b1e85e",
+      "name": "If Finnhub Has Articles",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3248,
+        528
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const symbol = $('Loop Over Symbols').item.json.symbol;\nconst articles = Array.isArray($json) ? $json : (Array.isArray($input.all()) ? $input.all().map(i => i.json) : []);\n\nif (!articles || articles.length === 0) {\n  return [];\n}\n\nreturn articles.map(article => {\n  const safeId = (article.url || article.headline || '')\n    .substring(0, 200)\n    .replace(/[^a-zA-Z0-9]/g, '_');\n\n  return {\n    json: {\n      article_id: `finnhub_${article.datetime || 'na'}_${safeId}`,\n      symbol: symbol,\n      title: article.headline || '',\n      content: article.summary || '',\n      url: article.url || '',\n      published_at: article.datetime ? new Date(article.datetime * 1000).toISOString() : new Date().toISOString(),\n      source: article.source || 'Finnhub'\n    }\n  };\n});"
+      },
+      "id": "a8a93a09-22ff-4bc8-95a4-372fdc0035c1",
+      "name": "Prepare Finnhub Articles",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3472,
+        528
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=INSERT INTO news_articles \n(article_id, symbol, title, content, url, published_at, source)\nVALUES \n('{{ $json.article_id }}', '{{ $json.symbol }}', '{{ $json.title.replace(/'/g, \"''\") }}', '{{ $json.content.replace(/'/g, \"''\") }}', '{{ $json.url }}', '{{ $json.published_at }}', '{{ $json.source }}')\nON CONFLICT (article_id) DO NOTHING",
+        "options": {}
+      },
+      "id": "80eb5bab-95de-4292-bca3-c9a0833f395b",
+      "name": "Save Finnhub to Database",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        3472,
+        752
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "gdEjFpQ7Jf6e0OER",
+          "name": "Postgres account 2"
+        }
+      }
     }
   ],
   "connections": {
@@ -214,6 +372,13 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Fetch News from EODHD1",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -222,6 +387,13 @@
         [
           {
             "node": "Prepare Articles",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fetch News from Finnhub",
             "type": "main",
             "index": 0
           }
@@ -243,6 +415,68 @@
       "main": [
         [
           {
+            "node": "Fetch News from Finnhub",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch News from EODHD1": {
+      "main": [
+        [
+          {
+            "node": "If Has Articles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch News from Finnhub": {
+      "main": [
+        [
+          {
+            "node": "If Finnhub Has Articles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Finnhub Has Articles": {
+      "main": [
+        [
+          {
+            "node": "Prepare Finnhub Articles",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Over Symbols",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Finnhub Articles": {
+      "main": [
+        [
+          {
+            "node": "Save Finnhub to Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Finnhub to Database": {
+      "main": [
+        [
+          {
             "node": "Loop Over Symbols",
             "type": "main",
             "index": 0
@@ -251,5 +485,9 @@
       ]
     }
   },
-  "pinData": {}
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "2c5b1575ddd1ce97f568eb6f35b192523455a69713066ed09981997135e408e8"
+  }
 }

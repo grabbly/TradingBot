@@ -1,0 +1,608 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "89a7b04c-a058-4a62-8954-e216c8749e49",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        2016,
+        1472
+      ],
+      "webhookId": "telegram-trading-commands",
+      "credentials": {
+        "telegramApi": {
+          "id": "mY5qmXRCM1fJhjE0",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const message = $json.message?.text || '';\nconst chatId = $json.message?.chat?.id;\nconst username = $json.message?.from?.username || 'Unknown';\n\n// Parse command (no slash required)\nconst parts = message.trim().split(/\\s+/);\nconst command = parts[0].toLowerCase();\nconst args = parts.slice(1);\n\nreturn {\n  json: {\n    command,\n    args,\n    chatId,\n    username,\n    originalMessage: message\n  }\n};"
+      },
+      "id": "1bacd7af-df59-4938-9d59-bb7a73d540c3",
+      "name": "Parse Command",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2240,
+        1472
+      ]
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.command }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "list"
+            },
+            {
+              "value2": "sell"
+            },
+            {
+              "value2": "buy"
+            },
+            {
+              "value2": "help"
+            }
+          ]
+        },
+        "fallbackOutput": 3
+      },
+      "id": "3a849f84-fe37-40d5-8527-a913871fb0f6",
+      "name": "Switch Command",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 2,
+      "position": [
+        2464,
+        1440
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://paper-api.alpaca.markets/v2/positions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "options": {}
+      },
+      "id": "0fed3143-cce9-43cd-bfa8-ba54e36ebcea",
+      "name": "Alpaca Get Positions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2896,
+        1184
+      ],
+      "alwaysOutputData": false,
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "GMo7eqsdOII9unPE",
+          "name": "Custom Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst chatId = $items('Parse Command')[0].json.chatId;\n\n// Extract positions from items\nconst positions = items.map(item => item.json);\n\nif (!positions || positions.length === 0) {\n  return {\n    json: {\n      chatId,\n      message: '📭 *No open positions*\\n\\nYour portfolio is currently empty.'\n    }\n  };\n}\n\n// Sort by P&L descending\nconst sorted = positions.sort((a, b) => parseFloat(b.unrealized_pl) - parseFloat(a.unrealized_pl));\n\nlet message = '📊 *OPEN POSITIONS*\\n\\n';\n\nfor (const pos of sorted) {\n  const symbol = pos.symbol;\n  const qty = parseFloat(pos.qty);\n  const entry = parseFloat(pos.avg_entry_price);\n  const current = parseFloat(pos.current_price);\n  const value = parseFloat(pos.market_value);\n  const pl = parseFloat(pos.unrealized_pl);\n  const plPct = parseFloat(pos.unrealized_plpc) * 100;\n  \n  const emoji = pl >= 0 ? '🟢' : '🔴';\n  const plSign = pl >= 0 ? '+' : '';\n  \n  message += `${emoji} *${symbol}*\\n`;\n  message += `   Qty: ${qty.toFixed(0)} shares\\n`;\n  message += `   Entry: $${entry.toFixed(2)}\\n`;\n  message += `   Current: $${current.toFixed(2)}\\n`;\n  message += `   Value: $${value.toFixed(2)}\\n`;\n  message += `   Profit: ${plSign}$${pl.toFixed(2)} (${plSign}${plPct.toFixed(2)}%)\\n\\n`;\n}\n\nmessage += '\\n💡 Use \"sell SYMBOL\" to close a position';\n\nreturn {\n  json: {\n    chatId,\n    message\n  }\n};"
+      },
+      "id": "46f7502f-feb9-4d47-8574-25ee5741027f",
+      "name": "Format List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3472,
+        1184
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const args = $items('Parse Command')[0].json.args;\nconst chatId = $items('Parse Command')[0].json.chatId;\n\nif (!args || args.length === 0) {\n  return {\n    json: {\n      chatId,\n      error: true,\n      message: '❌ *Error*\\n\\nUsage: sell SYMBOL\\n\\nExample: sell TSLA'\n    }\n  };\n}\n\nconst symbol = args[0].toUpperCase();\n\nreturn {\n  json: {\n    chatId,\n    symbol,\n    error: false\n  }\n};"
+      },
+      "id": "ee77d706-3282-4106-9f06-c8c2933ae307",
+      "name": "Validate Sell",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2880,
+        1360
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "has-error",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a3ea04e4-5d00-4d64-a946-66ab89c7bc02",
+      "name": "If Valid Sell",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3088,
+        1408
+      ]
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "=https://paper-api.alpaca.markets/v2/positions/{{ $json.symbol }}?cancel_orders=true",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "options": {}
+      },
+      "id": "dfa6e0d1-5b00-4f61-95aa-eaa561a0484d",
+      "name": "Alpaca Close Position",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3392,
+        1344
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "GMo7eqsdOII9unPE",
+          "name": "Custom Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $json;\nconst symbol = $items('Validate Sell')[0].json.symbol;\nconst chatId = $items('Parse Command')[0].json.chatId;\n\nif (response.code && response.code !== 200) {\n  // Error response\n  const errorMsg = response.message || 'Unknown error';\n  return {\n    json: {\n      chatId,\n      message: `❌ *Failed to close ${symbol}*\\n\\nError: ${errorMsg}`\n    }\n  };\n}\n\n// Success\nconst qty = response.qty || 'N/A';\nconst fillPrice = response.filled_avg_price || response.limit_price || 'Market';\n\nlet message = `✅ *Position Closed*\\n\\n`;\nmessage += `📊 Symbol: *${symbol}*\\n`;\nmessage += `📉 Qty: ${qty}\\n`;\n\nif (fillPrice !== 'Market') {\n  message += `💵 Price: $${parseFloat(fillPrice).toFixed(2)}\\n`;\n}\n\nmessage += `\\n🔄 Order status: ${response.status || 'pending'}\\n`;\nmessage += `\\n💡 Use \"list\" to see remaining positions`;\n\nreturn {\n  json: {\n    chatId,\n    message\n  }\n};"
+      },
+      "id": "b8dd86dd-89c9-4844-b544-cb7605c78739",
+      "name": "Format Sell Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3664,
+        1344
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const chatId = $items('Parse Command')[0].json.chatId;\n\nconst message = `🤖 *Trading Bot Commands*\\n\\n` +\n  `*Available Commands:*\\n\\n` +\n  `📋 list\\n` +\n  `   Show all open positions with P&L\\n\\n` +\n  `🟢 buy SYMBOL AMOUNT\\n` +\n  `   Open a new position\\n` +\n  `   Example: buy AAPL 1000 (buy $1000 worth)\\n\\n` +\n  `🔴 sell SYMBOL\\n` +\n  `   Close a specific position\\n` +\n  `   Example: sell TSLA\\n\\n` +\n  `❓ help\\n` +\n  `   Show this help message`;\n\nreturn {\n  json: {\n    chatId,\n    message\n  }\n};"
+      },
+      "id": "78eb7bf4-09ff-4a86-bb37-3e5071b59a3e",
+      "name": "Format Help",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2880,
+        1504
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const args = $items('Parse Command')[0].json.args;\nconst chatId = $items('Parse Command')[0].json.chatId;\n\nif (!args || args.length < 2) {\n  return {\n    json: {\n      chatId,\n      error: true,\n      message: '❌ *Error*\\n\\nUsage: buy SYMBOL AMOUNT\\n\\nExample: buy AAPL 1000'\n    }\n  };\n}\n\nconst symbol = args[0].toUpperCase();\nconst amount = parseFloat(args[1]);\n\nif (isNaN(amount) || amount <= 0) {\n  return {\n    json: {\n      chatId,\n      error: true,\n      message: '❌ *Error*\\n\\nAmount must be a positive number\\n\\nExample: buy AAPL 1000'\n    }\n  };\n}\n\nreturn {\n  json: {\n    chatId,\n    symbol,\n    amount,\n    error: false\n  }\n};"
+      },
+      "id": "83ac0f3e-b03e-4d05-89d7-2dae68407f1f",
+      "name": "Validate Buy",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2896,
+        1648
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "has-error-buy",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7e54c216-3764-4b14-91a4-304b8dfed260",
+      "name": "If Valid Buy",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3088,
+        1680
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://data.alpaca.markets/v2/stocks/{{ $json.symbol }}/trades/latest",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "options": {}
+      },
+      "id": "61c8ff58-f35d-4b85-9577-1db98ed4c45f",
+      "name": "Get Current Price",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3312,
+        1664
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "GMo7eqsdOII9unPE",
+          "name": "Custom Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const symbol = $items('Validate Buy')[0].json.symbol;\nconst amount = $items('Validate Buy')[0].json.amount;\nconst price = parseFloat($json.trade?.p || 0);\n\nif (!price) {\n  return {\n    json: {\n      error: true,\n      message: `❌ Could not get price for ${symbol}`\n    }\n  };\n}\n\nconst qty = Math.floor(amount / price);\n\nif (qty === 0) {\n  return {\n    json: {\n      error: true,\n      message: `❌ Amount too small\\n\\nPrice: $${price.toFixed(2)}\\nMinimum: $${price.toFixed(2)} (1 share)`\n    }\n  };\n}\n\nconst stopLossPercent = 0.02;\nconst takeProfitPercent = 0.04;\nconst stop_price = (price * (1 - stopLossPercent)).toFixed(2);\nconst take_profit = (price * (1 + takeProfitPercent)).toFixed(2);\n\nreturn {\n  json: {\n    symbol,\n    qty,\n    stop_price,\n    take_profit,\n    price: price.toFixed(2),\n    error: false\n  }\n};"
+      },
+      "id": "2445ad3f-b5c9-4db1-90c4-733dad1d19b5",
+      "name": "Calculate Buy Order",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3488,
+        1664
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://paper-api.alpaca.markets/v2/orders",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "symbol",
+              "value": "={{ $json.symbol }}"
+            },
+            {
+              "name": "qty",
+              "value": "={{ $json.qty }}"
+            },
+            {
+              "name": "side",
+              "value": "buy"
+            },
+            {
+              "name": "type",
+              "value": "market"
+            },
+            {
+              "name": "order_class",
+              "value": "bracket"
+            },
+            {
+              "name": "take_profit.limit_price",
+              "value": "={{ $json.take_profit }}"
+            },
+            {
+              "name": "stop_loss.stop_price",
+              "value": "={{ $json.stop_price }}"
+            },
+            {
+              "name": "time_in_force",
+              "value": "day"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "29194a02-1d48-40ca-9a76-d6533dd5f37c",
+      "name": "Alpaca Place Buy",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3728,
+        1664
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "GMo7eqsdOII9unPE",
+          "name": "Custom Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $json;\nconst symbol = $items('Validate Buy')[0].json.symbol;\nconst chatId = $items('Parse Command')[0].json.chatId;\n\nif (response.code && response.code !== 200) {\n  const errorMsg = response.message || 'Unknown error';\n  return {\n    json: {\n      chatId,\n      message: `❌ *Failed to buy ${symbol}*\\n\\nError: ${errorMsg}`\n    }\n  };\n}\n\nconst qty = response.qty || 'N/A';\nconst fillPrice = response.filled_avg_price || $items('Calculate Buy Order')[0].json.price || 'Market';\nconst stopPrice = $items('Calculate Buy Order')[0].json.stop_price;\nconst takeProfit = $items('Calculate Buy Order')[0].json.take_profit;\n\nlet message = `✅ *Buy Order Placed*\\n\\n`;\nmessage += `📊 Symbol: *${symbol}*\\n`;\nmessage += `📈 Qty: ${qty}\\n`;\nmessage += `💵 Price: ~$${fillPrice}\\n`;\nmessage += `🛑 Stop Loss: $${stopPrice} (-2%)\\n`;\nmessage += `🎯 Take Profit: $${takeProfit} (+4%)\\n`;\nmessage += `\\n🔄 Order status: ${response.status || 'pending'}\\n`;\nmessage += `\\n💡 Use \"list\" to see your positions`;\n\nreturn {\n  json: {\n    chatId,\n    message\n  }\n};"
+      },
+      "id": "9d7a051e-5419-4b52-84cc-48df0bacaf0e",
+      "name": "Format Buy Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3920,
+        1664
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "133b8c05-eba5-46e5-9e55-58b864d95b7c",
+      "name": "Send Telegram Response",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        4336,
+        1520
+      ],
+      "webhookId": "e6f771a8-6290-43ec-a3a4-c38dadeb7c65",
+      "credentials": {
+        "telegramApi": {
+          "id": "mY5qmXRCM1fJhjE0",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Telegram Trading Bot\n\nCommands (no slash needed):\n- list - Show positions\n- sell SYMBOL - Close position\n- buy SYMBOL AMOUNT - Open position\n- help - Show commands\n\nExample:\nsell TSLA\nbuy AAPL 1000",
+        "height": 300,
+        "width": 400,
+        "color": 4
+      },
+      "id": "17538792-377b-42f9-9764-5b7591db379e",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1872,
+        1344
+      ]
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Parse Command",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Command": {
+      "main": [
+        [
+          {
+            "node": "Switch Command",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch Command": {
+      "main": [
+        [
+          {
+            "node": "Alpaca Get Positions",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Validate Sell",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Validate Buy",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Help",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alpaca Get Positions": {
+      "main": [
+        [
+          {
+            "node": "Format List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format List": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Sell": {
+      "main": [
+        [
+          {
+            "node": "If Valid Sell",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Valid Sell": {
+      "main": [
+        [
+          {
+            "node": "Alpaca Close Position",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Telegram Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alpaca Close Position": {
+      "main": [
+        [
+          {
+            "node": "Format Sell Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Sell Response": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Help": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Buy": {
+      "main": [
+        [
+          {
+            "node": "If Valid Buy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Valid Buy": {
+      "main": [
+        [
+          {
+            "node": "Get Current Price",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Telegram Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Current Price": {
+      "main": [
+        [
+          {
+            "node": "Calculate Buy Order",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Buy Order": {
+      "main": [
+        [
+          {
+            "node": "Alpaca Place Buy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alpaca Place Buy": {
+      "main": [
+        [
+          {
+            "node": "Format Buy Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Buy Response": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "2c5b1575ddd1ce97f568eb6f35b192523455a69713066ed09981997135e408e8"
+  }
+}

@@ -6,11 +6,11 @@ After=network.target postgresql.service
 Type=simple
 User=gabby
 WorkingDirectory=/home/gabby/TradingBot/web
-Environment="PGHOST=localhost"
-Environment="PGPORT=5432"
-Environment="PGDATABASE=trading_bot"
-Environment="PGUSER=n8n_user"
-Environment="PGPASSWORD=***REMOVED***"
+Environment="POSTGRES_HOST=localhost"
+Environment="POSTGRES_PORT=5432"
+Environment="POSTGRES_DB=trading_bot"
+Environment="POSTGRES_USER=n8n_user"
+Environment="POSTGRES_PASSWORD=your_secure_password_here"
 ExecStart=/home/gabby/TradingBot/web/venv/bin/gunicorn --bind 0.0.0.0:5001 --workers 2 app:app
 Restart=always
 RestartSec=10

@@ -17,11 +17,11 @@ app = Flask(__name__)
 
 # Database config
 DB_CONFIG = {
-    'host': os.environ.get('PGHOST', 'localhost'),
-    'port': int(os.environ.get('PGPORT', '5432')),
-    'dbname': os.environ.get('PGDATABASE', 'trading_bot'),
-    'user': os.environ.get('PGUSER', 'n8n_user'),
-    'password': os.environ.get('PGPASSWORD', '***REMOVED***'),
+    'host': os.environ.get('POSTGRES_HOST', 'localhost'),
+    'port': int(os.environ.get('POSTGRES_PORT', '5432')),
+    'dbname': os.environ.get('POSTGRES_DB', 'trading_bot'),
+    'user': os.environ.get('POSTGRES_USER'),
+    'password': os.environ.get('POSTGRES_PASSWORD'),
 }
 
 
@@ -66,6 +66,81 @@ def get_data(symbol):
         for r in rows
     ]
     return jsonify(data)
+
+
+@app.route('/api/summary')
+def get_summary():
+    conn = get_db_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT date, balance, change
+                FROM account_balance
+                ORDER BY date DESC
+                LIMIT 1
+                """
+            )
+            balance_row = cur.fetchone()
+
+            cur.execute(
+                """
+                SELECT MAX(balance) AS max_balance
+                FROM account_balance
+                WHERE date >= CURRENT_DATE - INTERVAL '30 days'
+                """
+            )
+            max_balance_row = cur.fetchone()
+
+            cur.execute(
+                """
+                SELECT symbol, sentiment_score
+                FROM sentiment_scores
+                WHERE date = CURRENT_DATE
+                ORDER BY sentiment_score DESC
+                LIMIT 4
+                """
+            )
+            top_sentiment = cur.fetchall()
+
+            cur.execute(
+                """
+                SELECT symbol, order_type, value, created_at
+                FROM positions
+                WHERE date = CURRENT_DATE
+                ORDER BY created_at DESC
+                LIMIT 10
+                """
+            )
+            recent_orders = cur.fetchall()
+    finally:
+        conn.close()
+
+    balance = float(balance_row[1]) if balance_row and balance_row[1] is not None else None
+    change = float(balance_row[2]) if balance_row and balance_row[2] is not None else None
+    max_balance = float(max_balance_row[0]) if max_balance_row and max_balance_row[0] is not None else None
+
+    drawdown = None
+    if balance is not None and max_balance:
+        drawdown = (max_balance - balance) / max_balance
+
+    return jsonify({
+        "balance": balance,
+        "change": change,
+        "max_balance_30d": max_balance,
+        "drawdown": drawdown,
+        "top_sentiment": [
+            {"symbol": r[0], "score": float(r[1])} for r in top_sentiment
+        ],
+        "recent_orders": [
+            {
+                "symbol": r[0],
+                "side": r[1],
+                "value": float(r[2]),
+                "created_at": r[3].isoformat()
+            } for r in recent_orders
+        ]
+    })
 
 
 @app.route('/chart/<symbol>.png')

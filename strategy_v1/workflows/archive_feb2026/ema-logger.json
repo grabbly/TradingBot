@@ -1,26 +1,5 @@
 {
-  "name": "EMA Logger (Data Collection)",
   "nodes": [
-    {
-      "parameters": {
-        "rule": {
-          "interval": [
-            {
-              "field": "seconds",
-              "secondsInterval": 3
-            }
-          ]
-        }
-      },
-      "id": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
-      "name": "Every 3 Seconds",
-      "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1.1,
-      "position": [
-        -880,
-        112
-      ]
-    },
     {
       "parameters": {
         "rule": {
@@ -32,15 +11,14 @@
           ]
         }
       },
-      "id": "f0a1b2c3-d4e5-4f6a-7b8c-9d0e1f2a3b4c",
+      "id": "a12ac166-62b6-419d-aecc-2598d4d35936",
       "name": "Every 12 Hours (Test Data)",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.1,
       "position": [
-        -880,
-        312
+        4128,
+        464
       ],
-      "disabled": false,
       "notes": "ВРЕМЕННАЯ НОДА: загружает тестовые данные из прошлого. Отключить/удалить после отладки!"
     },
     {
@@ -54,13 +32,13 @@
           "timeout": 300000
         }
       },
-      "id": "f1a2b3c4-d5e6-4f7a-8b9c-0d1e2f3a4b5c",
+      "id": "ebee79aa-ab73-45ff-a5e4-51419986daa0",
       "name": "Load Historical Data",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -656,
-        312
+        4352,
+        464
       ],
       "notes": "Загружает 7 дней 5-минутных данных для NVDA, AAPL, TSLA из Yahoo Finance через Flask API"
     },
@@ -88,81 +66,90 @@
         },
         "options": {}
       },
-      "id": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e",
+      "id": "cf964c8a-4131-4a30-bdd4-6769c8757b0c",
       "name": "Get OHLC Bars",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -656,
-        112
+        4352,
+        256
       ],
       "credentials": {
         "httpCustomAuth": {
-          "id": "9QJ6HFd2VND4G0I4",
-          "name": "Auth Alpaca API"
+          "id": "GMo7eqsdOII9unPE",
+          "name": "Custom Auth account"
         }
       }
     },
     {
       "parameters": {
-        "jsCode": "// === EMA CALCULATION (MULTIPLE PERIODS) ===\nconst config = {\n  symbol: 'NVDA',\n  emaShort: 5,\n  emaLong: 20,\n  confirmationPercent: 0.75,\n  periods: [5, 8, 9, 13, 20, 21, 34, 50, 100, 200]\n};\n\nconst barsData = $input.first().json;\nconst bars = barsData.bars || [];\n\n// No bars at all\nif (!bars.length) {\n  return {\n    json: {\n      config,\n      noData: true,\n      message: 'No bars returned from Alpaca'\n    }\n  };\n}\n\n// Calculate EMA\nfunction calculateEMA(prices, period) {\n  const ema = [];\n  const multiplier = 2 / (period + 1);\n\n  let sum = 0;\n  for (let i = 0; i < period; i++) sum += prices[i];\n  ema[period - 1] = sum / period;\n\n  for (let i = period; i < prices.length; i++) {\n    ema[i] = (prices[i] - ema[i - 1]) * multiplier + ema[i - 1];\n  }\n  return ema;\n}\n\nconst closes = bars.map(b => parseFloat(b.c));\nconst last = closes.length - 1;\nconst prev = closes.length - 2;\n\n// Calculate all EMAs\nconst current = {\n  close: closes[last],\n  timestamp: bars[last].t\n};\n\nconst previous = {\n  close: closes[prev]\n};\n\nconfig.periods.forEach(period => {\n  if (closes.length >= period) {\n    const ema = calculateEMA(closes, period);\n    current[`ema${period}`] = ema[last];\n    previous[`ema${period}`] = ema[prev];\n  } else {\n    current[`ema${period}`] = null;\n    previous[`ema${period}`] = null;\n  }\n});\n\nreturn {\n  json: {\n    config,\n    current,\n    previous,\n    lastBar: bars[last]\n  }\n};"
+        "jsCode": "// === EMA CALCULATION (MULTIPLE PERIODS) ===\nconst config = {\n  symbol: 'NVDA',\n  emaShort: 5,\n  emaLong: 20,\n  confirmationPercent: 0.75,\n  periods: [5, 8, 9, 13, 20, 21, 34, 50, 100, 200]\n};\n\nconst barsData = $input.first().json;\nconst bars = barsData.bars || [];\n\n// No bars at all\nif (!bars.length) {\n  return {\n    json: {\n      config,\n      noData: true,\n      message: 'No bars returned from Alpaca'\n    }\n  };\n}\n\n// Calculate EMA\nfunction calculateEMA(prices, period) {\n  const ema = [];\n  const multiplier = 2 / (period + 1);\n\n  let sum = 0;\n  for (let i = 0; i < period; i++) sum += prices[i];\n  ema[period - 1] = sum / period;\n\n  for (let i = period; i < prices.length; i++) {\n    ema[i] = (prices[i] - ema[i - 1]) * multiplier + ema[i - 1];\n  }\n  return ema;\n}\n\nfunction calculateRSI(prices, period = 14) {\n  if (prices.length < period + 1) return null;\n  let gains = 0;\n  let losses = 0;\n  for (let i = 1; i <= period; i++) {\n    const diff = prices[i] - prices[i - 1];\n    if (diff >= 0) gains += diff;\n    else losses += Math.abs(diff);\n  }\n  let avgGain = gains / period;\n  let avgLoss = losses / period;\n  for (let i = period + 1; i < prices.length; i++) {\n    const diff = prices[i] - prices[i - 1];\n    const gain = diff >= 0 ? diff : 0;\n    const loss = diff < 0 ? Math.abs(diff) : 0;\n    avgGain = (avgGain * (period - 1) + gain) / period;\n    avgLoss = (avgLoss * (period - 1) + loss) / period;\n  }\n  if (avgLoss === 0) return 100;\n  const rs = avgGain / avgLoss;\n  return 100 - (100 / (1 + rs));\n}\n\nfunction calculateSMA(values, period) {\n  if (values.length < period) return null;\n  const slice = values.slice(values.length - period);\n  const sum = slice.reduce((a, b) => a + b, 0);\n  return sum / period;\n}\n\nconst closes = bars.map(b => parseFloat(b.c));\nconst volumes = bars.map(b => parseFloat(b.v));\nconst last = closes.length - 1;\nconst prev = closes.length - 2;\n\n// Calculate all EMAs\nconst current = {\n  close: closes[last],\n  timestamp: bars[last].t\n};\n\nconst previous = {\n  close: closes[prev]\n};\n\nconfig.periods.forEach(period => {\n  if (closes.length >= period) {\n    const ema = calculateEMA(closes, period);\n    current[`ema${period}`] = ema[last];\n    previous[`ema${period}`] = ema[prev];\n  } else {\n    current[`ema${period}`] = null;\n    previous[`ema${period}`] = null;\n  }\n});\n\ncurrent.volume = volumes[last];\ncurrent.volume_ma20 = calculateSMA(volumes, 20);\ncurrent.rsi14 = calculateRSI(closes, 14);\n\nreturn {\n  json: {\n    config,\n    current,\n    previous,\n    lastBar: bars[last]\n  }\n};"
       },
-      "id": "c3d4e5f6-a7b8-4c9d-0e1f-2a3b4c5d6e7f",
+      "id": "eb5523ef-a095-48f9-a9ca-32f957f2f4c4",
       "name": "Calculate EMA",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -448,
-        112
+        4560,
+        256
       ]
     },
     {
       "parameters": {
         "jsCode": "// === SIGNAL DETECTION ===\nconst input = $input.first().json;\n\n// If not enough data yet, just hold and pass info through\nif (input.noData || input.notEnoughBars || !input.current || !input.previous) {\n  return {\n    json: {\n      action: 'hold',\n      message: input.message || 'Waiting for enough bars to start EMA logic',\n      crossover: 'none',\n      state: {},\n      current: input.current || {},\n      currentPrice: null,\n      symbol: (input.config && input.config.symbol) || 'NVDA',\n      timestamp: new Date().toISOString(),\n      notReady: true,\n      barsAvailable: input.barsAvailable,\n      requiredBars: input.requiredBars\n    }\n  };\n}\n\nconst { current, previous, config } = input;\n\n// Get state from static data\nconst state = $getWorkflowStaticData('global');\nif (!state.status) {\n  state.status = 'flat';\n  state.crossoverPrice = null;\n  state.crossoverTime = null;\n  state.entryPrice = null;\n}\n\n// Detect crossover using EMA5 and EMA20\nfunction detectCrossover(curr, prev) {\n  if (!curr.ema5 || !curr.ema20 || !prev.ema5 || !prev.ema20) return 'none';\n  if (prev.ema5 <= prev.ema20 && curr.ema5 > curr.ema20) return 'bullish';\n  if (prev.ema5 >= prev.ema20 && curr.ema5 < curr.ema20) return 'bearish';\n  return 'none';\n}\n\nconst crossover = detectCrossover(current, previous);\nconst currentPrice = current.close;\n\nlet action = 'hold';\nlet message = '';\n\nswitch (state.status) {\n  case 'flat':\n    if (crossover === 'bullish') {\n      state.status = 'waiting_confirmation';\n      state.crossoverPrice = current.close;\n      state.crossoverTime = current.timestamp;\n      action = 'signal_detected';\n      message = `Bullish crossover at ${current.close.toFixed(2)}. Waiting +${config.confirmationPercent}%`;\n    }\n    break;\n\n  case 'waiting_confirmation':\n    const target = state.crossoverPrice * (1 + config.confirmationPercent / 100);\n    if (crossover === 'bearish') {\n      state.status = 'flat';\n      state.crossoverPrice = null;\n      action = 'signal_cancelled';\n      message = 'Bearish crossover - signal cancelled';\n    } else if (currentPrice >= target) {\n      state.status = 'in_position';\n      state.entryPrice = currentPrice;\n      action = 'buy';\n      message = `Confirmed! BUY at ${currentPrice.toFixed(2)}`;\n    } else {\n      message = `Waiting: ${currentPrice.toFixed(2)} / ${target.toFixed(2)}`;\n    }\n    break;\n\n  case 'in_position':\n    if (crossover === 'bearish') {\n      const pnl = ((currentPrice - state.entryPrice) / state.entryPrice * 100).toFixed(2);\n      action = 'sell';\n      message = `Bearish crossover - SELL at ${currentPrice.toFixed(2)}. P/L: ${pnl}%`;\n      state.status = 'flat';\n      state.entryPrice = null;\n    }\n    break;\n}\n\nreturn {\n  json: {\n    action,\n    message,\n    crossover,\n    state: { ...state },\n    current,\n    currentPrice,\n    symbol: config.symbol,\n    timestamp: current.timestamp\n  }\n};"
       },
-      "id": "d4e5f6a7-b8c9-4d0e-1f2a-3b4c5d6e7f8a",
+      "id": "be41f2ad-a0d9-4f87-ad03-0bc6737bfb26",
       "name": "Detect Signal",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -224,
-        112
+        4784,
+        256
       ]
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "=INSERT INTO ema_snapshots (timestamp, symbol, close_price, ema5, ema8, ema9, ema13, ema20, ema21, ema34, ema50, ema100, ema200, action, crossover, message)\nVALUES (\n  '{{ $json.timestamp }}',\n  '{{ $json.symbol }}',\n  {{ $json.currentPrice || 'NULL' }},\n  {{ $json.current?.ema5 || 'NULL' }},\n  {{ $json.current?.ema8 || 'NULL' }},\n  {{ $json.current?.ema9 || 'NULL' }},\n  {{ $json.current?.ema13 || 'NULL' }},\n  {{ $json.current?.ema20 || 'NULL' }},\n  {{ $json.current?.ema21 || 'NULL' }},\n  {{ $json.current?.ema34 || 'NULL' }},\n  {{ $json.current?.ema50 || 'NULL' }},\n  {{ $json.current?.ema100 || 'NULL' }},\n  {{ $json.current?.ema200 || 'NULL' }},\n  '{{ $json.action }}',\n  '{{ $json.crossover }}',\n  '{{ $json.message }}'\n)",
+        "query": "=INSERT INTO ema_snapshots (timestamp, symbol, close_price, ema5, ema8, ema9, ema13, ema20, ema21, ema34, ema50, ema100, ema200, rsi14, volume, volume_ma20, action, crossover, message)\nVALUES (\n  '{{ $json.timestamp }}',\n  '{{ $json.symbol }}',\n  {{ $json.currentPrice || 'NULL' }},\n  {{ $json.current?.ema5 || 'NULL' }},\n  {{ $json.current?.ema8 || 'NULL' }},\n  {{ $json.current?.ema9 || 'NULL' }},\n  {{ $json.current?.ema13 || 'NULL' }},\n  {{ $json.current?.ema20 || 'NULL' }},\n  {{ $json.current?.ema21 || 'NULL' }},\n  {{ $json.current?.ema34 || 'NULL' }},\n  {{ $json.current?.ema50 || 'NULL' }},\n  {{ $json.current?.ema100 || 'NULL' }},\n  {{ $json.current?.ema200 || 'NULL' }},\n  {{ $json.current?.rsi14 || 'NULL' }},\n  {{ $json.current?.volume || 'NULL' }},\n  {{ $json.current?.volume_ma20 || 'NULL' }},\n  '{{ $json.action }}',\n  '{{ $json.crossover }}',\n  '{{ $json.message }}'\n)",
         "options": {}
       },
-      "id": "e5f6a7b8-c9d0-4e1f-2a3b-4c5d6e7f8a9b",
+      "id": "1a23eaf5-94e2-4e5e-b491-f6f873836eab",
       "name": "Log Snapshot to DB",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        0,
-        112
+        5008,
+        256
       ],
       "credentials": {
         "postgres": {
-          "id": "Cg19dKBPWwzZgtn2",
-          "name": "PostgreSQL Trading"
+          "id": "gdEjFpQ7Jf6e0OER",
+          "name": "Postgres account 2"
         }
       }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "ca777724-7835-43f9-8772-b47b7e8f9323",
+      "name": "Every 1 Mins",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        4128,
+        256
+      ]
     }
   ],
   "connections": {
-    "Every 3 Seconds": {
-      "main": [
-        [
-          {
-            "node": "Get OHLC Bars",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Every 12 Hours (Test Data)": {
       "main": [
         [
@@ -206,11 +193,22 @@
           }
         ]
       ]
+    },
+    "Every 1 Mins": {
+      "main": [
+        [
+          {
+            "node": "Get OHLC Bars",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "pinData": {},
   "meta": {
     "templateCredsSetupCompleted": true,
-    "instanceId": "761f1737ead169f86632b637ef0da6362172a07a6a3e5de45f80125c04107994"
+    "instanceId": "2c5b1575ddd1ce97f568eb6f35b192523455a69713066ed09981997135e408e8"
   }
 }

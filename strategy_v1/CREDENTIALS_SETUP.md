@@ -45,10 +45,10 @@
 
 ```bash
 # 1. Создать пользователя и базу (от postgres superuser)
-psql -h ***REMOVED*** -U postgres -f db/init.sql
+psql -h your_postgres_host -U postgres -f db/init.sql
 
 # 2. Применить схему таблиц
-psql -h ***REMOVED*** -U n8n_user -d trading_bot -f db/schema.sql
+psql -h your_postgres_host -U n8n_user -d trading_bot -f db/schema.sql
 ```
 
 ### Настройка в n8n
@@ -59,11 +59,11 @@ psql -h ***REMOVED*** -U n8n_user -d trading_bot -f db/schema.sql
 
 | Поле | Значение |
 |------|----------|
-| Host | `***REMOVED***` |
+| Host | `your_postgres_host` |
 | Port | `5432` |
 | Database | `trading_bot` |
 | User | `n8n_user` |
-| Password | `***REMOVED***` |
+| Password | `your_secure_password` |
 | SSL | Отключено (локальная сеть) |
 
 ---
@@ -95,5 +95,5 @@ curl -H "APCA-API-KEY-ID: YOUR_KEY" \
 
 ### PostgreSQL
 ```bash
-psql -h ***REMOVED*** -U n8n_user -d trading_bot -c "SELECT * FROM trades LIMIT 5;"
+psql -h your_postgres_host -U n8n_user -d trading_bot -c "SELECT * FROM trades LIMIT 5;"
 ```

@@ -1,0 +1,349 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, title, content, url, published_at, source FROM news_articles WHERE symbol = '{{ $json.symbol }}' AND analyzed = false AND fetched_at >= CURRENT_DATE ORDER BY published_at DESC LIMIT 10",
+        "options": {}
+      },
+      "id": "dd4f21ad-cb78-4922-9dc1-623884ac7c5a",
+      "name": "Get_Unanalyzed_News",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        12704,
+        6416
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "gdEjFpQ7Jf6e0OER",
+          "name": "Postgres account 2"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "e3c2dc18-5092-496f-bf21-35af2b4e513a",
+      "name": "loop_over_tickers",
+      "type": "n8n-nodes-base.splitInBatches",
+      "position": [
+        12352,
+        6544
+      ],
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT symbol FROM tracked_symbols WHERE active = true ORDER BY symbol",
+        "options": {}
+      },
+      "id": "2b3b1cd8-1cd0-4e51-a1bf-abc2e4136ca8",
+      "name": "Get_Active_Symbols",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        12128,
+        6544
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "gdEjFpQ7Jf6e0OER",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "1",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              },
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "0"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "5b518ac5-9d55-4dbb-80f4-8f79377c6230",
+      "name": "If_No_Articles",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        12928,
+        6416
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "jsCode": "const symbol = $('loop_over_tickers').item?.json?.symbol ?? 'UNKNOWN';\nreturn [{ json: { skipped: true, symbol } }];"
+      },
+      "id": "9049190a-2a80-47e2-b711-8d43600defa1",
+      "name": "Skip_No_Articles",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        13152,
+        6560
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const articles = $input.all();\nconst texts = articles.map(item => {\n  const a = item.json;\n  return `Title: ${a.title || 'N/A'}\\nContent: ${(a.content || '').substring(0, 500)}`;\n});\n\nreturn [{\n  json: {\n    texts: texts,\n    titles: articles.map(a => a.json.title || 'N/A'),\n    articleCount: articles.length\n  }\n}];"
+      },
+      "id": "c72f6e0a-76a9-4c8a-a079-7816cfab07ac",
+      "name": "Prepare_for_FinBERT",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        13152,
+        6400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://192.168.1.3:8000/batch",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\"texts\": $json.texts} }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        13376,
+        6400
+      ],
+      "id": "0d7500a0-81e7-4e9b-9ce1-cee8f1c8dc41",
+      "name": "FinBERT_Batch_Analyze",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const finbertResults = $input.first().json.results || [];\nconst symbol = $('loop_over_tickers').first().json.symbol;\n\nif (finbertResults.length === 0) {\n  return { json: { sentiment_score: 0, rationale: 'No articles analyzed', articleCount: 0, symbol: symbol } };\n}\n\n// Calculate average sentiment\nconst avgSentiment = finbertResults.reduce((sum, r) => sum + (r.sentiment || 0), 0) / finbertResults.length;\n\nconst rationale = `FinBERT avg sentiment: ${avgSentiment.toFixed(4)} across ${finbertResults.length} articles`;\n\nreturn { json: { sentiment_score: avgSentiment, rationale: rationale, articleCount: finbertResults.length, symbol: symbol } };"
+      },
+      "id": "3f193f2e-daf5-4e63-8dba-0c9861cea5dc",
+      "name": "Calculate_Average_Sentiment",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        13600,
+        6400
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO sentiment_scores (date, symbol, sentiment_score, rationale, article_count) VALUES ( CURRENT_DATE, '{{ $json.symbol }}', ROUND({{ Number($json.sentiment_score) }}::numeric, 4), '{{ $json.rationale }}', {{ Number($json.articleCount) }} ) ON CONFLICT (date, symbol) DO UPDATE SET sentiment_score = EXCLUDED.sentiment_score, rationale = EXCLUDED.rationale, article_count = EXCLUDED.article_count",
+        "options": {}
+      },
+      "id": "4e92a95d-2086-485e-aac6-c071c5f470c0",
+      "name": "save_sentiment_to_db",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        14496,
+        6640
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "gdEjFpQ7Jf6e0OER",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE news_articles SET analyzed = true WHERE symbol = '{{ $('loop_over_tickers').first().json.symbol }}' AND analyzed = false AND fetched_at >= CURRENT_DATE",
+        "options": {}
+      },
+      "id": "70a3a89c-a15d-4a89-ae78-57f7251e91d9",
+      "name": "mark_articles_analyzed",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        14720,
+        6640
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "gdEjFpQ7Jf6e0OER",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 15
+            }
+          ]
+        }
+      },
+      "id": "62a42b68-ddea-4ae0-8ad2-8fb25a29f23d",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        11904,
+        6544
+      ],
+      "typeVersion": 1.2
+    }
+  ],
+  "connections": {
+    "Get_Unanalyzed_News": {
+      "main": [
+        [
+          {
+            "node": "If_No_Articles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "loop_over_tickers": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Get_Unanalyzed_News",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get_Active_Symbols": {
+      "main": [
+        [
+          {
+            "node": "loop_over_tickers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If_No_Articles": {
+      "main": [
+        [
+          {
+            "node": "Prepare_for_FinBERT",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip_No_Articles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip_No_Articles": {
+      "main": [
+        [
+          {
+            "node": "loop_over_tickers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare_for_FinBERT": {
+      "main": [
+        [
+          {
+            "node": "FinBERT_Batch_Analyze",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FinBERT_Batch_Analyze": {
+      "main": [
+        [
+          {
+            "node": "Calculate_Average_Sentiment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate_Average_Sentiment": {
+      "main": [
+        [
+          {
+            "node": "save_sentiment_to_db",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "save_sentiment_to_db": {
+      "main": [
+        [
+          {
+            "node": "mark_articles_analyzed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "mark_articles_analyzed": {
+      "main": [
+        [
+          {
+            "node": "loop_over_tickers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get_Active_Symbols",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "2c5b1575ddd1ce97f568eb6f35b192523455a69713066ed09981997135e408e8"
+  }
+}

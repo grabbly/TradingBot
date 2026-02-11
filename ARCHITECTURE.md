@@ -2,6 +2,13 @@
 
 ## Database Schema (PostgreSQL - trading_bot)
 
+### Connection Details
+- **Host**: Set via environment variable `POSTGRES_HOST` (e.g., localhost or your server IP)
+- **Port**: 5432 (default PostgreSQL port)
+- **Database**: trading_bot
+- **User**: n8n_user
+- **Password**: Set via environment variable `POSTGRES_PASSWORD`
+
 ### EMA Strategy Tables
 - **ema_snapshots** - Real-time EMA data (10 periods: 5,8,9,13,20,21,34,50,100,200)
 - **trades** - Trade history for EMA strategy
@@ -87,13 +94,13 @@ EODHD API → news_articles → AI Analysis → sentiment_scores → Alpaca
 ```
 
 ## Credentials (N8N)
-- **postgres_trading_bot**: n8n_user / ***REMOVED***
+- **postgres_trading_bot**: Set via environment variables (see .env.example)
 - **httpCustomAuth**: Alpaca API authentication
 - **openAiApi**: OpenAI API for sentiment analysis
 - **httpQueryAuth**: EODHD API for news
 
 ## Server Info
-- **Host**: ***REMOVED***:5432
+- **Host**: 192.168.1.3:5432
 - **Database**: trading_bot
 - **Users**: postgres (owner), n8n_user (worker)
 - **Sudo**: 2356HJK

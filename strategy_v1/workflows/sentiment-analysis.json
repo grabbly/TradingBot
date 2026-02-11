@@ -3,37 +3,36 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT id, title, content, url, published_at, source\nFROM news_articles\nWHERE symbol = '{{ $json.symbol }}'\n  AND analyzed = false\n  AND fetched_at >= CURRENT_DATE\nORDER BY published_at DESC\nLIMIT 10",
+        "query": "SELECT id, title, content, url, published_at, source FROM news_articles WHERE symbol = '{{ $json.symbol }}' AND analyzed = false ORDER BY published_at DESC LIMIT 10",
         "options": {}
       },
-      "id": "b37509f3-858f-4087-970d-811962b999fb",
+      "id": "7ff5eb72-145a-45be-bcd9-f612c9c2ec91",
       "name": "Get_Unanalyzed_News",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        256,
-        784
+        11552,
+        6896
       ],
       "alwaysOutputData": true,
       "credentials": {
         "postgres": {
-          "id": "Cg19dKBPWwzZgtn2",
-          "name": "PostgreSQL Trading"
+          "id": "gdEjFpQ7Jf6e0OER",
+          "name": "Postgres account 2"
         }
       },
       "continueOnFail": true
     },
     {
       "parameters": {
-        "batchSize": 1,
         "options": {}
       },
-      "id": "68e4903e-94c7-4528-beb4-496d3061f2fe",
+      "id": "52e3738f-5208-41bf-89bd-ce1150aac480",
       "name": "loop_over_tickers",
       "type": "n8n-nodes-base.splitInBatches",
       "position": [
-        -96,
-        912
+        11328,
+        7184
       ],
       "typeVersion": 3
     },
@@ -43,18 +42,18 @@
         "query": "SELECT symbol FROM tracked_symbols WHERE active = true ORDER BY symbol",
         "options": {}
       },
-      "id": "247f9a6a-e98c-45eb-8821-b12ba23d676a",
+      "id": "9ab01a1b-33be-4ce4-8a4b-de1e24ddf5e9",
       "name": "Get_Active_Symbols",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        -320,
-        912
+        11104,
+        7184
       ],
       "credentials": {
         "postgres": {
-          "id": "Cg19dKBPWwzZgtn2",
-          "name": "PostgreSQL Trading"
+          "id": "gdEjFpQ7Jf6e0OER",
+          "name": "Postgres account 2"
         }
       }
     },
@@ -62,150 +61,348 @@
       "parameters": {
         "conditions": {
           "options": {
-            "version": 2,
-            "leftValue": "",
-            "caseSensitive": true,
-            "typeValidation": "strict"
+            "version": 2
           },
           "conditions": [
             {
-              "id": "770d6272-1cde-44d7-9e15-fe5d7c28ba36",
+              "id": "1",
               "operator": {
-                "name": "filter.operator.exists",
-                "type": "string",
-                "operation": "exists",
-                "singleValue": true
+                "type": "number",
+                "operation": "gt"
               },
-              "leftValue": "={{ String($json.id ?? '') }}"
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "0"
             }
           ],
           "combinator": "and"
         },
         "options": {}
       },
-      "id": "7ec4b58c-3fc4-4c92-ac9f-09b6f8bc6143",
+      "id": "477d54b1-1f77-48f3-a6f7-65ab81168d77",
       "name": "If_No_Articles",
       "type": "n8n-nodes-base.if",
       "position": [
-        480,
-        784
+        11776,
+        6896
       ],
       "typeVersion": 2.2
     },
     {
       "parameters": {
-        "jsCode": "// Continue to next symbol - keep flow going\nconst symbol = $('loop_over_tickers').item?.json?.symbol ?? $json.symbol ?? null;\nreturn [{ json: { skipped: true, symbol } }];"
+        "jsCode": "const symbol = $('loop_over_tickers').item?.json?.symbol ?? 'UNKNOWN';\nreturn [{ json: { skipped: true, symbol } }];"
       },
-      "id": "991e14c8-b759-4538-a064-106459c54fa7",
+      "id": "97c58bb7-427b-43e3-b3c2-8dbc7f67f539",
       "name": "Skip_No_Articles",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        704,
-        688
+        12000,
+        7040
       ]
     },
     {
       "parameters": {
-        "jsCode": "// Combine articles into a single string for AI analysis\nconst articles = $input.all();\nconst combinedString = JSON.stringify(articles.map(item => item.json), null, 2);\n\nreturn [{\n  json: {\n    fullString: combinedString,\n    articleCount: articles.length\n  },\n  pairedItem: articles.map((_, index) => ({ item: index }))\n}];"
+        "jsCode": "const articles = $input.all();\nconst texts = articles.map(item => {\n  const a = item.json;\n  return `Title: ${a.title || 'N/A'}\\nContent: ${(a.content || '').substring(0, 500)}`;\n});\n\nreturn [{\n  json: {\n    texts: texts,\n    titles: articles.map(a => a.json.title || 'N/A'),\n    articleCount: articles.length\n  }\n}];"
       },
-      "id": "0fafa46e-fe34-4263-9227-3d772012458a",
-      "name": "join_articles_into_1",
+      "id": "5413630a-90ee-4319-bb77-59db003bfefd",
+      "name": "Prepare_for_FinBERT",
       "type": "n8n-nodes-base.code",
       "position": [
-        704,
-        880
+        12000,
+        6800
       ],
       "typeVersion": 2
     },
     {
       "parameters": {
-        "jsCode": "// Extract clean JSON from AI output\ntry {\n  const rawString = $input.first().json.output || '';\n  \n  // Find JSON object boundaries\n  const jsonStart = rawString.indexOf('{');\n  const jsonEnd = rawString.lastIndexOf('}');\n  \n  if (jsonStart === -1 || jsonEnd === -1) {\n    return { json: { error: 'No JSON found in output', sentiment_score: 0, rationale: 'Parse error' } };\n  }\n  \n  // Extract and parse JSON\n  const cleanJson = rawString.substring(jsonStart, jsonEnd + 1);\n  const parsed = JSON.parse(cleanJson);\n  \n  // Validate required fields\n  if (typeof parsed.sentiment_score === 'undefined' || parsed.sentiment_score === null) {\n    parsed.sentiment_score = 0;\n  }\n  if (!parsed.rationale) {\n    parsed.rationale = 'No rationale provided';\n  }\n  \n  return { json: parsed };\n} catch (error) {\n  return { json: { error: error.message, sentiment_score: 0, rationale: 'Error: ' + error.message } };\n}"
+        "method": "POST",
+        "url": "http://192.168.1.3:8000/batch",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\"texts\": $('Prepare_for_FinBERT').item.json.texts} }}",
+        "options": {
+          "timeout": 60000
+        }
       },
-      "id": "485196d4-1445-4fcb-92b6-42afd503c8f0",
-      "name": "format_output_as_json",
-      "type": "n8n-nodes-base.code",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
-        1664,
-        896
+        12224,
+        6800
       ],
-      "executeOnce": false,
-      "retryOnFail": false,
-      "typeVersion": 2,
-      "alwaysOutputData": true,
-      "onError": "continueRegularOutput"
+      "id": "7eab1afc-77c0-433d-9a02-d3b223949d09",
+      "name": "FinBERT_Batch_Analyze",
+      "alwaysOutputData": true
     },
     {
       "parameters": {
         "conditions": {
           "options": {
-            "version": 2,
-            "leftValue": "",
-            "caseSensitive": true,
-            "typeValidation": "strict"
+            "version": 2
           },
           "combinator": "and",
           "conditions": [
             {
-              "id": "770d6272-1cde-44d7-9e15-fe5d7c28ba36",
+              "id": "finbert-has-results",
               "operator": {
-                "type": "string",
-                "operation": "notExists"
+                "type": "boolean",
+                "operation": "equals"
               },
-              "leftValue": "={{ $json.error }}"
+              "leftValue": "={{ Array.isArray($json.results) && $json.results.length > 0 }}",
+              "rightValue": true
             }
           ]
         },
         "options": {}
       },
-      "id": "cddf2f2b-8aec-4418-9df6-a30188d3f353",
-      "name": "if_format_succesful",
+      "id": "b8895f85-9940-4e7a-b403-84ec52834b74",
+      "name": "Check_FinBERT_Result",
       "type": "n8n-nodes-base.if",
       "position": [
-        1936,
-        896
+        12448,
+        6800
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "amount": 120
+      },
+      "id": "033a2fe4-9421-4496-8f48-d8734c5d6fb7",
+      "name": "Wait_Backoff",
+      "type": "n8n-nodes-base.wait",
+      "position": [
+        12672,
+        6896
+      ],
+      "webhookId": "b96c21d5-0d2f-4b0f-9f7b-7b7a08e6b2a7",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://192.168.1.3:8000/batch",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\"texts\": $json.texts} }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        12896,
+        6896
+      ],
+      "id": "06433acc-ffd7-4578-aacf-a32f893192c4",
+      "name": "FinBERT_Batch_Analyze_Retry",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "finbert-has-results-retry",
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              },
+              "leftValue": "={{ Array.isArray($json.results) && $json.results.length > 0 }}",
+              "rightValue": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4d507fb0-8673-4f85-b641-72efd95450c1",
+      "name": "Check_FinBERT_Result_Retry",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        13120,
+        6896
       ],
       "typeVersion": 2.2
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO sentiment_scores (date, symbol, sentiment_score, rationale, article_count) VALUES ( CURRENT_DATE, '{{ $('loop_over_tickers').item.json.symbol }}', {{ Number($json.sentiment_score ?? 0) }}, '{{ String($json.rationale ?? 'No analysis').replace(/'/g, \"''\") }}', {{ $('join_articles_into_1').first().json.articleCount }} ) ON CONFLICT (date, symbol) DO UPDATE SET sentiment_score = EXCLUDED.sentiment_score, rationale = EXCLUDED.rationale, article_count = EXCLUDED.article_count",
+        "query": "SELECT sentiment_score, rationale, article_count\nFROM sentiment_scores\nWHERE symbol = '{{ $('loop_over_tickers').item.json.symbol }}'\nORDER BY date DESC\nLIMIT 1",
         "options": {}
       },
-      "id": "86ad67a3-1467-4149-8da6-16e43c552657",
-      "name": "save_sentiment_to_db",
+      "id": "998bc537-9b90-4167-8a1b-5f870655d3e1",
+      "name": "Get_Last_Sentiment",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        2464,
-        1008
+        13344,
+        6944
       ],
       "credentials": {
         "postgres": {
-          "id": "Cg19dKBPWwzZgtn2",
-          "name": "PostgreSQL Trading"
+          "id": "gdEjFpQ7Jf6e0OER",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const symbol = $('loop_over_tickers').item.json.symbol;\nconst last = $input.first()?.json || {};\n\nconst sentimentScore = typeof last.sentiment_score === 'number' ? last.sentiment_score : 0;\nconst rationale = last.rationale || 'Fallback: no previous sentiment available';\nconst articleCount = typeof last.article_count === 'number' ? last.article_count : 0;\n\nreturn { json: { sentiment_score: sentimentScore, rationale: `Fallback used. ${rationale}`, articleCount, symbol } };"
+      },
+      "id": "375767a4-aa69-4db0-b5bc-2d94a52874cf",
+      "name": "Format_Fallback",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        13568,
+        6944
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "chatId": "356747848",
+        "text": "=⚠️ *Sentiment Fallback*\n\n📊 Symbol: `{{ $json.symbol }}`\n⚠️ Reason: FinBERT failed twice, used last known sentiment\n🧾 Rationale: {{ $json.rationale }}\n\n⏰ {{ $now.toFormat('HH:mm:ss') }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "62451fb9-9317-4479-bb8e-787dc313e602",
+      "name": "Telegram_Fallback_Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        13792,
+        6944
+      ],
+      "webhookId": "0ec7084a-5bd0-41d1-9958-e812a42f0287",
+      "credentials": {
+        "telegramApi": {
+          "id": "mY5qmXRCM1fJhjE0",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const finbertResults = $input.first().json.results || [];\nconst symbol = $('loop_over_tickers').first().json.symbol;\n\nif (finbertResults.length === 0) {\n  return { json: { sentiment_score: 0, rationale: 'No articles analyzed', articleCount: 0, symbol: symbol } };\n}\n\n// Calculate average sentiment\nconst avgSentiment = finbertResults.reduce((sum, r) => sum + (r.sentiment || 0), 0) / finbertResults.length;\n\nconst rationale = `FinBERT avg sentiment: ${avgSentiment.toFixed(4)} across ${finbertResults.length} articles`;\n\nreturn { json: { sentiment_score: avgSentiment, rationale: rationale, articleCount: finbertResults.length, symbol: symbol } };"
+      },
+      "id": "9fb513af-aa58-4383-be3a-11be2ee3a7c2",
+      "name": "Calculate_Average_Sentiment",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        13344,
+        6704
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2
+          },
+          "combinator": "or",
+          "conditions": [
+            {
+              "id": "extreme-negative",
+              "operator": {
+                "type": "number",
+                "operation": "lte"
+              },
+              "leftValue": "={{ $json.sentiment_score }}",
+              "rightValue": -0.5
+            },
+            {
+              "id": "extreme-positive",
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              },
+              "leftValue": "={{ $json.sentiment_score }}",
+              "rightValue": 0.7
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "38ce5c0c-dd69-4337-a26d-41a864a80ff0",
+      "name": "If_Extreme_Sentiment",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        13568,
+        6704
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "chatId": "356747848",
+        "text": "=⚠️ *Extreme Sentiment*\n\n📊 Symbol: `{{ $json.symbol }}`\n📈 Score: {{ $json.sentiment_score }}\n🧾 {{ $json.rationale }}\n\n⏰ {{ $now.toFormat('HH:mm:ss') }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "2e6d7366-71f1-4583-ba19-e489b5cf3582",
+      "name": "Telegram_Extreme_Sentiment",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        13792,
+        6624
+      ],
+      "webhookId": "c2fc2a1b-7a27-412b-afea-153b94fb4ec9",
+      "credentials": {
+        "telegramApi": {
+          "id": "mY5qmXRCM1fJhjE0",
+          "name": "Telegram account"
         }
       }
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "UPDATE news_articles SET analyzed = true WHERE symbol = '{{ $('loop_over_tickers').item.json.symbol }}' AND analyzed = false AND fetched_at >= CURRENT_DATE",
+        "query": "INSERT INTO sentiment_scores (date, symbol, sentiment_score, rationale, article_count) VALUES ( CURRENT_DATE, '{{ $json.symbol }}', ROUND({{ Number($json.sentiment_score) }}::numeric, 4), '{{ String($json.rationale ?? 'No analysis').replace(/'/g, \"''\") }}', {{ Number($json.articleCount) }} ) ON CONFLICT (date, symbol) DO UPDATE SET sentiment_score = EXCLUDED.sentiment_score, rationale = EXCLUDED.rationale, article_count = EXCLUDED.article_count",
         "options": {}
       },
-      "id": "1c6fd41c-7b0c-44bc-8f87-d624b8f33222",
+      "id": "71eb1a95-b70e-42df-a363-8871aea878d8",
+      "name": "save_sentiment_to_db",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        14016,
+        6800
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "gdEjFpQ7Jf6e0OER",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE news_articles SET analyzed = true WHERE symbol = '{{ $('loop_over_tickers').first().json.symbol }}' AND analyzed = false AND fetched_at >= CURRENT_DATE",
+        "options": {}
+      },
+      "id": "61cb020d-91a9-466e-92f6-6184eb22edd2",
       "name": "mark_articles_analyzed",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        2688,
-        1008
+        14240,
+        7040
       ],
       "credentials": {
         "postgres": {
-          "id": "Cg19dKBPWwzZgtn2",
-          "name": "PostgreSQL Trading"
+          "id": "gdEjFpQ7Jf6e0OER",
+          "name": "Postgres account 2"
         }
       }
     },
@@ -219,150 +416,14 @@
           ]
         }
       },
-      "id": "9c0f1ed8-36d3-445a-a6b0-b8dcebaab9d7",
+      "id": "94f81620-2502-4ff4-8340-a4f680bbf5e8",
       "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "position": [
-        -544,
-        912
+        10880,
+        7184
       ],
       "typeVersion": 1.2
-    },
-    {
-      "parameters": {
-        "content": "# Workflow Overview \n**This workflow automates the process of analyzing the sentiment of stock market news.**\n\n- retrieves a list of stock tickers from a Google Sheet \n- fetches recent news articles for each ticker\n- uses a large language model to perform sentiment analysis on the articles\n- records the sentiment scores and rationale back into a Google Sheet.",
-        "height": 440,
-        "width": 480
-      },
-      "id": "35c6903b-3474-4e22-adad-5d2019e01672",
-      "name": "Sticky Note",
-      "type": "n8n-nodes-base.stickyNote",
-      "position": [
-        -528,
-        -80
-      ],
-      "typeVersion": 1
-    },
-    {
-      "parameters": {
-        "content": "# 1. Daily Trigger and Stock Symbol Retrieval\n- **Schedule Trigger:** This workflow is set to run automatically every day at 3:00 PM. Analyzes unanalyzed news collected throughout the day.\n\n- **Get_Active_Symbols:** Reads active symbols from PostgreSQL tracked_symbols table.\n\n- **loop_over_tickers:** Processes each symbol one by one, fetching unanalyzed news from the database.",
-        "height": 640,
-        "width": 640,
-        "color": 4
-      },
-      "id": "5a92fc82-5c1c-4738-9d87-d40cd5effb32",
-      "name": "Sticky Note1",
-      "type": "n8n-nodes-base.stickyNote",
-      "position": [
-        -592,
-        464
-      ],
-      "typeVersion": 1
-    },
-    {
-      "parameters": {
-        "content": "# 2. News Retrieval from Database\n\n- **Get_Unanalyzed_News:** Fetches up to 10 unanalyzed news articles for the current symbol from PostgreSQL news_articles table (analyzed=false, today's date).\n\n- **If_No_Articles:** Checks if any articles were found. If none, skips to next symbol.\n\n- **join_articles_into_1:** Combines multiple news articles into a single text string for AI analysis.",
-        "height": 940,
-        "width": 680,
-        "color": 5
-      },
-      "id": "7417cb6e-083b-4b04-9cfa-76782a99380b",
-      "name": "Sticky Note2",
-      "type": "n8n-nodes-base.stickyNote",
-      "position": [
-        192,
-        288
-      ],
-      "typeVersion": 1
-    },
-    {
-      "parameters": {
-        "content": "# 3. Sentiment Analysis with AI\n\n- **AI Agent & Google Gemini Chat Model:** This is the core of the sentiment analysis. The \"AI Agent\" node is configured with a detailed prompt that instructs the \"Google Gemini Chat Model\" to act as a stock sentiment analyzer. The prompt specifies the input format (stock symbol, news title, and content), the analysis guidelines (sentiment score from -1 to 1 and rationale), and the desired JSON output format. The combined text of the news articles and the current stock ticker are passed to the model.l analyze all the articles at once.",
-        "height": 800,
-        "width": 500,
-        "color": 6
-      },
-      "id": "8bb275f1-810d-477c-bf79-bef0b34c8a17",
-      "name": "Sticky Note3",
-      "type": "n8n-nodes-base.stickyNote",
-      "position": [
-        976,
-        448
-      ],
-      "typeVersion": 1
-    },
-    {
-      "parameters": {
-        "content": "# 4. Output Formatting and Error Handling\n\n- **format_output_as_json:** The output from the AI model is a raw string that includes a JSON object. This code node extracts the clean JSON from the string and prepares it for the next steps.\n\n- **if_format_succesful:** This conditional node checks if the previous step of formatting the AI's output into a clean JSON was successful. If there was an error, it sends the workflow back to the \"AI Agent\" to try again.",
-        "height": 860,
-        "width": 560,
-        "color": 2
-      },
-      "id": "5ae1dfb4-3ca6-432d-b5a5-93f53715bf62",
-      "name": "Sticky Note4",
-      "type": "n8n-nodes-base.stickyNote",
-      "position": [
-        1600,
-        240
-      ],
-      "typeVersion": 1
-    },
-    {
-      "parameters": {
-        "content": "# 5. Storing Results in PostgreSQL\n\n- **save_sentiment_to_db:** Saves sentiment analysis to PostgreSQL sentiment_scores table. Uses ON CONFLICT to update if symbol already analyzed today.\n- **mark_articles_analyzed:** Marks processed news articles as analyzed=true to avoid reprocessing.",
-        "height": 600,
-        "width": 520,
-        "color": 3
-      },
-      "id": "5289ea31-c369-4d5e-b44c-e1bc8eea7229",
-      "name": "Sticky Note5",
-      "type": "n8n-nodes-base.stickyNote",
-      "position": [
-        2256,
-        560
-      ],
-      "typeVersion": 1
-    },
-    {
-      "parameters": {
-        "model": {
-          "__rl": true,
-          "value": "gpt-4o",
-          "mode": "list",
-          "cachedResultName": "gpt-4o"
-        },
-        "builtInTools": {},
-        "options": {}
-      },
-      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
-      "typeVersion": 1.3,
-      "position": [
-        1008,
-        912
-      ],
-      "id": "cec9c6db-76aa-49a5-a7ad-1f94af384f64",
-      "name": "OpenAI Chat Model",
-      "credentials": {
-        "openAiApi": {
-          "id": "KyIYFpVPH1lS6e89",
-          "name": "OpenAi account 3"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "promptType": "define",
-        "text": "=You are a stock sentiment analyzer. Your task is to evaluate news content for their potential impact on a specific stock.\n\nInput Format:\n    User input is in the following format:\n        Symbol: (The stock symbol also called ticker symbol)\n        title: (News headline that you have to analyze for sentiment of the given stock)\ncontent:(the content of the news to analyze)\nAnalysis Guidelines:\n    Evaluate how the news might affect the price of only the stock specified by the user in the input and generate a sentiment score between -1 and 1.\n    A score close to -1 indicates a strong negative impact, suggesting the news could significantly drive the stock price down.\n    A score near 0 represents a neutral impact, implying little to no effect on the stock price.\n    Conversely, a score close to 1 reflects a strong positive impact, likely driving the stock price up.\n    When generating the score, consider whether the news is surprising i.e., if it contains new information - or already priced in.\n    Explain in detail the rationale behind the score, highlighting why the news is positive, negative, or neutral for the given stock's price.\nOutput Format:\n    Return the result as JSON in the following format:\n\n        { symbol: (The stock symbol also called ticker symbol),\"sentiment_score\": (The sentiment score - float between -1 and 1), \"rationale\": (Your explanation for the score)}\nProvide the JSON output only. Do not include any other text.\n\nReal stock Symbol:\n{{$('loop_over_tickers').item.json.symbol}}\n{{ $('join_articles_into_1').all()[0].json.fullString }}\n",
-        "options": {}
-      },
-      "type": "@n8n/n8n-nodes-langchain.agent",
-      "typeVersion": 3,
-      "position": [
-        1008,
-        736
-      ],
-      "id": "a04b17d4-ea44-417b-86b3-7e334d21ebf1",
-      "name": "AI Agent1"
     }
   ],
   "connections": {
@@ -404,7 +465,7 @@
       "main": [
         [
           {
-            "node": "join_articles_into_1",
+            "node": "Prepare_for_FinBERT",
             "type": "main",
             "index": 0
           }
@@ -429,29 +490,109 @@
         ]
       ]
     },
-    "join_articles_into_1": {
+    "Prepare_for_FinBERT": {
       "main": [
         [
           {
-            "node": "AI Agent1",
+            "node": "FinBERT_Batch_Analyze",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "format_output_as_json": {
+    "FinBERT_Batch_Analyze": {
       "main": [
         [
           {
-            "node": "if_format_succesful",
+            "node": "Check_FinBERT_Result",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "if_format_succesful": {
+    "Check_FinBERT_Result": {
+      "main": [
+        [
+          {
+            "node": "Calculate_Average_Sentiment",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait_Backoff",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait_Backoff": {
+      "main": [
+        [
+          {
+            "node": "FinBERT_Batch_Analyze_Retry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FinBERT_Batch_Analyze_Retry": {
+      "main": [
+        [
+          {
+            "node": "Check_FinBERT_Result_Retry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check_FinBERT_Result_Retry": {
+      "main": [
+        [
+          {
+            "node": "Calculate_Average_Sentiment",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get_Last_Sentiment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get_Last_Sentiment": {
+      "main": [
+        [
+          {
+            "node": "Format_Fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format_Fallback": {
+      "main": [
+        [
+          {
+            "node": "Telegram_Fallback_Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram_Fallback_Alert": {
       "main": [
         [
           {
@@ -459,10 +600,43 @@
             "type": "main",
             "index": 0
           }
+        ]
+      ]
+    },
+    "Calculate_Average_Sentiment": {
+      "main": [
+        [
+          {
+            "node": "If_Extreme_Sentiment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If_Extreme_Sentiment": {
+      "main": [
+        [
+          {
+            "node": "Telegram_Extreme_Sentiment",
+            "type": "main",
+            "index": 0
+          }
         ],
         [
           {
-            "node": "AI Agent1",
+            "node": "save_sentiment_to_db",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram_Extreme_Sentiment": {
+      "main": [
+        [
+          {
+            "node": "save_sentiment_to_db",
             "type": "main",
             "index": 0
           }
@@ -501,33 +675,11 @@
           }
         ]
       ]
-    },
-    "OpenAI Chat Model": {
-      "ai_languageModel": [
-        [
-          {
-            "node": "AI Agent1",
-            "type": "ai_languageModel",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "AI Agent1": {
-      "main": [
-        [
-          {
-            "node": "format_output_as_json",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
     }
   },
   "pinData": {},
   "meta": {
     "templateCredsSetupCompleted": true,
-    "instanceId": "761f1737ead169f86632b637ef0da6362172a07a6a3e5de45f80125c04107994"
+    "instanceId": "2c5b1575ddd1ce97f568eb6f35b192523455a69713066ed09981997135e408e8"
   }
 }

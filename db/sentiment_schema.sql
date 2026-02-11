@@ -66,19 +66,20 @@ CREATE TABLE IF NOT EXISTS tracked_symbols (
     id SERIAL PRIMARY KEY,
     symbol VARCHAR(10) UNIQUE NOT NULL,
     name VARCHAR(100),
+    sector VARCHAR(50),
     active BOOLEAN DEFAULT TRUE,
     added_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Initial symbols
-INSERT INTO tracked_symbols (symbol, name, active) VALUES
-    ('NVDA', 'NVIDIA Corporation', true),
-    ('AAPL', 'Apple Inc.', true),
-    ('TSLA', 'Tesla Inc.', true),
-    ('GOOGL', 'Alphabet Inc.', true),
-    ('MSFT', 'Microsoft Corporation', true),
-    ('AMZN', 'Amazon.com Inc.', true),
-    ('META', 'Meta Platforms Inc.', true)
+INSERT INTO tracked_symbols (symbol, name, sector, active) VALUES
+    ('NVDA', 'NVIDIA Corporation', 'Technology', true),
+    ('AAPL', 'Apple Inc.', 'Technology', true),
+    ('TSLA', 'Tesla Inc.', 'Consumer Discretionary', true),
+    ('GOOGL', 'Alphabet Inc.', 'Communication Services', true),
+    ('MSFT', 'Microsoft Corporation', 'Technology', true),
+    ('AMZN', 'Amazon.com Inc.', 'Consumer Discretionary', true),
+    ('META', 'Meta Platforms Inc.', 'Communication Services', true)
 ON CONFLICT (symbol) DO NOTHING;
 
 COMMENT ON TABLE news_articles IS 'Pool of fetched news articles for sentiment analysis';

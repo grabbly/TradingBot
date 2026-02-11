@@ -213,7 +213,7 @@ Sent after all trades complete.
 ## Credentials
 
 ### PostgreSQL
-- **Host:** ***REMOVED***
+- **Host:** 192.168.1.3
 - **Database:** trading_bot
 - **User:** n8n_user
 - **Password:** `<configured in n8n credentials>`

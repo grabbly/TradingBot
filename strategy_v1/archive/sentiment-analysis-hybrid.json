@@ -1,0 +1,535 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, title, content, url, published_at, source\nFROM news_articles\nWHERE symbol = '{{ $json.symbol }}'\n  AND analyzed = false\n  AND fetched_at >= CURRENT_DATE\nORDER BY published_at DESC\nLIMIT 10",
+        "options": {}
+      },
+      "id": "a778f195-02e9-4fbf-b461-ebf4cd441e2c",
+      "name": "Get_Unanalyzed_News",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        6208,
+        3264
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "gdEjFpQ7Jf6e0OER",
+          "name": "Postgres account 2"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "fde662cb-a48d-496b-a757-e26eafbf8353",
+      "name": "loop_over_tickers",
+      "type": "n8n-nodes-base.splitInBatches",
+      "position": [
+        5856,
+        3392
+      ],
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT symbol FROM tracked_symbols WHERE active = true ORDER BY symbol",
+        "options": {}
+      },
+      "id": "6d590ee0-6613-4bcc-893b-36f41cf2665e",
+      "name": "Get_Active_Symbols",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        5632,
+        3392
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "gdEjFpQ7Jf6e0OER",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "770d6272-1cde-44d7-9e15-fe5d7c28ba36",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              },
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "0"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "8bfaa109-486a-4954-b8a6-f28fb1682447",
+      "name": "If_No_Articles",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        6432,
+        3264
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "jsCode": "const symbol = $('loop_over_tickers').item?.json?.symbol ?? $json.symbol ?? null;\nreturn [{ json: { skipped: true, symbol } }];"
+      },
+      "id": "667e32b7-b4b2-451c-92ed-fe622c26a49e",
+      "name": "Skip_No_Articles",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6656,
+        3168
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare articles for FinBERT batch analysis\nconst articles = $input.all();\nconst texts = articles.map(item => {\n  const a = item.json;\n  return `Title: ${a.title || ''}\\nContent: ${(a.content || '').substring(0, 500)}`;\n});\n\nreturn [{\n  json: {\n    texts: texts,\n    articles: articles.map(item => item.json),\n    articleCount: articles.length\n  }\n}];"
+      },
+      "id": "9f8ac89e-f3fb-4a91-85b9-73d6b9dff88d",
+      "name": "Prepare_for_FinBERT",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        6656,
+        3360
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://192.168.1.3:8000/batch",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"texts\": $json.texts\n} }}",
+        "options": {
+          "timeout": 60000
+        },
+        "responseOnly": false
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        6880,
+        3360
+      ],
+      "id": "f2c1868e-7be2-4f21-8f0b-9458df91e2b8",
+      "name": "FinBERT_Batch_Analyze",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse FinBERT batch response and format for GPT-4\nconst finbertResponse = $json;\nconst finbertResults = finbertResponse.results || [];\nconst articles = finbertResponse.articles || [];\n\n// Create summary for GPT-4\nconst summary = finbertResults.map((r, i) => {\n  const article = articles[i] || {};\n  return {\n    title: article.title || '',\n    finbert_sentiment: r.sentiment ? r.sentiment.toFixed(4) : '0',\n    finbert_positive: r.positive ? r.positive.toFixed(4) : '0'\n  };\n});\n\nconst summaryText = JSON.stringify({\n  articles: summary,\n  count: summary.length\n}, null, 2);\n\nreturn { json: { summaryText, articleCount: finbertResults.length } };"
+      },
+      "id": "fbf08f97-38d3-486a-9dd9-640444c2b60c",
+      "name": "Format_for_GPT4",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        7104,
+        3360
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        7328,
+        3520
+      ],
+      "id": "8ab1f964-350f-42a3-9b3a-502b4040278c",
+      "name": "OpenAI_Chat_Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "xGbKpSvqfAmSkF2A",
+          "name": "OpenAi account gabby"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a stock sentiment analyzer. FinBERT has already analyzed individual article sentiment. Your task is to make a FINAL decision considering the stock symbol context.\n\nInput:\n{{ $json.summaryText }}\n\nAnalysis Guidelines:\n- FinBERT scores show general sentiment, but YOU decide impact on THIS stock\n- Consider: Is news surprising? Already priced in? About competitors?\n- Generate ONE sentiment_score from -1 to +1 for the symbol\n- Explain your reasoning\n\nOutput JSON:\n{\n  \"sentiment_score\": (float -1 to +1),\n  \"rationale\": \"Your explanation\"\n}\n\nProvide ONLY JSON. No extra text.",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        7328,
+        3360
+      ],
+      "id": "2b05bd60-7e24-45f7-b342-8434b4eddfde",
+      "name": "GPT4_Agent"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract clean JSON from GPT-4 output\ntry {\n  const rawString = $input.first().json.output || '';\n  const jsonStart = rawString.indexOf('{');\n  const jsonEnd = rawString.lastIndexOf('}');\n  \n  if (jsonStart === -1 || jsonEnd === -1) {\n    return { json: { error: 'No JSON found', sentiment_score: 0, rationale: 'Parse error' } };\n  }\n  \n  const cleanJson = rawString.substring(jsonStart, jsonEnd + 1);\n  const parsed = JSON.parse(cleanJson);\n  \n  if (typeof parsed.sentiment_score === 'undefined') {\n    parsed.sentiment_score = 0;\n  }\n  if (!parsed.rationale) {\n    parsed.rationale = 'No rationale';\n  }\n  \n  return { json: parsed };\n} catch (error) {\n  return { json: { error: error.message, sentiment_score: 0, rationale: 'Error: ' + error.message } };\n}"
+      },
+      "id": "d84cd57f-e487-47ed-99b9-93670facca4f",
+      "name": "Parse_GPT4_Output",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        7552,
+        3360
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "770d6272-1cde-44d7-9e15-fe5d7c28ba36",
+              "operator": {
+                "type": "string",
+                "operation": "notExists"
+              },
+              "leftValue": "={{ $json.error }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "aa3dc576-ec27-4011-9d57-81c105deb5bf",
+      "name": "If_Format_Successful",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        7776,
+        3360
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO sentiment_scores (date, symbol, sentiment_score, rationale, article_count) \nVALUES ( CURRENT_DATE, 'GENERIC', {{ Number($json.sentiment_score ?? 0) }}, '{{ String($json.rationale ?? 'No analysis').replace(/'/g, \"''\") }}', 1 ) \nON CONFLICT (date, symbol) DO UPDATE SET sentiment_score = EXCLUDED.sentiment_score, rationale = EXCLUDED.rationale, article_count = EXCLUDED.article_count",
+        "options": {}
+      },
+      "id": "9609d7be-cf9e-41e5-9c42-fc647bbfcaab",
+      "name": "save_sentiment_to_db",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        8000,
+        3488
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "gdEjFpQ7Jf6e0OER",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE news_articles SET analyzed = true WHERE symbol = '{{ $('loop_over_tickers').item.json.symbol }}' AND analyzed = false AND fetched_at >= CURRENT_DATE",
+        "options": {}
+      },
+      "id": "b762b158-c481-44d0-bfe4-335425f6cc83",
+      "name": "mark_articles_analyzed",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        8224,
+        3488
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "gdEjFpQ7Jf6e0OER",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 15
+            }
+          ]
+        }
+      },
+      "id": "199897f9-8972-4ce5-8a1e-69a46439899b",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        5408,
+        3392
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "amount": 2
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        7776,
+        3552
+      ],
+      "id": "3e8e92c0-9327-455e-8230-7e7130710f45",
+      "name": "Wait",
+      "webhookId": "055dc6d1-d2b9-48e5-bb92-c95dc5e9a583"
+    },
+    {
+      "parameters": {
+        "jsCode": "const httpResponse = $json;\nconst preparePrevious = $input.first();\n\nconst articles = preparePrevious.json?.articles || [];\n\nreturn {\n  json: {\n    ...httpResponse,\n    articles: articles\n  }\n};"
+      },
+      "id": "merge-finbert-data-abc123",
+      "name": "Merge_FinBERT_Data",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        7000,
+        3360
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    }
+  ],
+  "connections": {
+    "Get_Unanalyzed_News": {
+      "main": [
+        [
+          {
+            "node": "If_No_Articles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "loop_over_tickers": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Get_Unanalyzed_News",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get_Active_Symbols": {
+      "main": [
+        [
+          {
+            "node": "loop_over_tickers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If_No_Articles": {
+      "main": [
+        [
+          {
+            "node": "Prepare_for_FinBERT",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip_No_Articles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip_No_Articles": {
+      "main": [
+        [
+          {
+            "node": "loop_over_tickers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare_for_FinBERT": {
+      "main": [
+        [
+          {
+            "node": "FinBERT_Batch_Analyze",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FinBERT_Batch_Analyze": {
+      "main": [
+        [
+          {
+            "node": "Merge_FinBERT_Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format_for_GPT4": {
+      "main": [
+        [
+          {
+            "node": "GPT4_Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI_Chat_Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "GPT4_Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GPT4_Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse_GPT4_Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse_GPT4_Output": {
+      "main": [
+        [
+          {
+            "node": "If_Format_Successful",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If_Format_Successful": {
+      "main": [
+        [
+          {
+            "node": "save_sentiment_to_db",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "save_sentiment_to_db": {
+      "main": [
+        [
+          {
+            "node": "mark_articles_analyzed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "mark_articles_analyzed": {
+      "main": [
+        [
+          {
+            "node": "loop_over_tickers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get_Active_Symbols",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "GPT4_Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge_FinBERT_Data": {
+      "main": [
+        [
+          {
+            "node": "Format_for_GPT4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "2c5b1575ddd1ce97f568eb6f35b192523455a69713066ed09981997135e408e8"
+  }
+}

@@ -1,11 +1,11 @@
 -- Выполнить от имени postgres superuser
--- psql -h ***REMOVED*** -U postgres -f db/init.sql
+-- psql -h your_host -U postgres -f db/init.sql
 
 -- 1. Создать пользователя (если не существует)
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'n8n_user') THEN
-        CREATE USER n8n_user WITH PASSWORD '***REMOVED***';
+        CREATE USER n8n_user WITH PASSWORD 'your_secure_password_here';
     END IF;
 END
 $$;

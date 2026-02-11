@@ -123,7 +123,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Получаем данные из цикла\nconst loopData = $('For Each Symbol').item.json;\n\nif (!loopData || !loopData.symbol || !loopData.bars) {\n  return {\n    json: {\n      error: 'No data from loop',\n      skip: true\n    }\n  };\n}\n\nconst { symbol, bars } = loopData;\nconst dbData = $input.all();\n\nif (!bars || !bars.length) {\n  return {\n    json: {\n      symbol,\n      error: 'No bars returned from API',\n      notReady: true\n    }\n  };\n}\n\n// Объединить исторические данные из БД с новым баром\nconst historicalCloses = dbData.map(item => parseFloat(item.json.close_price)).reverse();\nconst historicalVolumes = dbData.map(item => {\n  const vol = item.json.volume;\n  return vol !== null && vol !== undefined ? parseFloat(vol) : 0;\n}).reverse();\nconst newBar = bars[0];\nconst newClose = parseFloat(newBar.c);\nconst newVolume = parseFloat(newBar.v) || 0;\n\nconst allCloses = [...historicalCloses, newClose];\nconst allVolumes = [...historicalVolumes, newVolume];\n\nfunction calculateEMA(prices, period) {\n  const ema = [];\n  const multiplier = 2 / (period + 1);\n  let sum = 0;\n  \n  for (let i = 0; i < period && i < prices.length; i++) {\n    sum += prices[i];\n  }\n  ema[period - 1] = sum / period;\n  \n  for (let i = period; i < prices.length; i++) {\n    ema[i] = (prices[i] - ema[i - 1]) * multiplier + ema[i - 1];\n  }\n  return ema;\n}\n\nfunction calculateRSI(prices, period = 14) {\n  if (prices.length < period + 1) return null;\n  let gains = 0, losses = 0;\n  \n  for (let i = 1; i <= period; i++) {\n    const diff = prices[i] - prices[i - 1];\n    if (diff >= 0) gains += diff;\n    else losses += Math.abs(diff);\n  }\n  \n  let avgGain = gains / period;\n  let avgLoss = losses / period;\n  \n  for (let i = period + 1; i < prices.length; i++) {\n    const diff = prices[i] - prices[i - 1];\n    const gain = diff >= 0 ? diff : 0;\n    const loss = diff < 0 ? Math.abs(diff) : 0;\n    avgGain = (avgGain * (period - 1) + gain) / period;\n    avgLoss = (avgLoss * (period - 1) + loss) / period;\n  }\n  \n  if (avgLoss === 0) return 100;\n  const rs = avgGain / avgLoss;\n  return 100 - (100 / (1 + rs));\n}\n\nfunction calculateSMA(values, period) {\n  if (values.length < period) return null;\n  const slice = values.slice(values.length - period);\n  return slice.reduce((a, b) => a + b, 0) / period;\n}\n\nconst last = allCloses.length - 1;\nconst prev = Math.max(0, allCloses.length - 2);\n\nconst current = { close: allCloses[last], timestamp: newBar.t };\nconst previous = { close: allCloses[prev] };\n\nconst periods = [5, 8, 9, 13, 20, 21, 34, 50, 100, 200];\n\nperiods.forEach(p => {\n  if (allCloses.length >= p) {\n    const emaValues = calculateEMA(allCloses, p);\n    current[`ema${p}`] = emaValues[last];\n    previous[`ema${p}`] = emaValues[prev];\n  }\n});\n\ncurrent.volume = allVolumes[last];\ncurrent.volume_ma20 = calculateSMA(allVolumes, 20);\ncurrent.rsi14 = calculateRSI(allCloses, 14);\n\nreturn {\n  json: {\n    symbol,\n    current,\n    previous,\n    timestamp: newBar.t,\n    lastBar: newBar\n  }\n};"
+        "jsCode": "const symbolData = $items('For Each Symbol')[0].json;\nconst { symbol, bars } = symbolData;\nconst dbData = $input.all();\n\nif (!bars || !bars.length) {\n  return {\n    json: {\n      symbol,\n      error: 'No bars returned from API',\n      notReady: true\n    }\n  };\n}\n\n// Объединить исторические данные из БД с новым баром\nconst historicalCloses = dbData.map(item => parseFloat(item.json.close_price)).reverse();\nconst historicalVolumes = dbData.map(item => parseFloat(item.json.volume)).reverse();\nconst newBar = bars[0];\nconst newClose = parseFloat(newBar.c);\nconst newVolume = parseFloat(newBar.v);\n\nconst allCloses = [...historicalCloses, newClose];\nconst allVolumes = [...historicalVolumes, newVolume];\n\nfunction calculateEMA(prices, period) {\n  const ema = [];\n  const multiplier = 2 / (period + 1);\n  let sum = 0;\n  \n  for (let i = 0; i < period && i < prices.length; i++) {\n    sum += prices[i];\n  }\n  ema[period - 1] = sum / period;\n  \n  for (let i = period; i < prices.length; i++) {\n    ema[i] = (prices[i] - ema[i - 1]) * multiplier + ema[i - 1];\n  }\n  return ema;\n}\n\nfunction calculateRSI(prices, period = 14) {\n  if (prices.length < period + 1) return null;\n  let gains = 0, losses = 0;\n  \n  for (let i = 1; i <= period; i++) {\n    const diff = prices[i] - prices[i - 1];\n    if (diff >= 0) gains += diff;\n    else losses += Math.abs(diff);\n  }\n  \n  let avgGain = gains / period;\n  let avgLoss = losses / period;\n  \n  for (let i = period + 1; i < prices.length; i++) {\n    const diff = prices[i] - prices[i - 1];\n    const gain = diff >= 0 ? diff : 0;\n    const loss = diff < 0 ? Math.abs(diff) : 0;\n    avgGain = (avgGain * (period - 1) + gain) / period;\n    avgLoss = (avgLoss * (period - 1) + loss) / period;\n  }\n  \n  if (avgLoss === 0) return 100;\n  const rs = avgGain / avgLoss;\n  return 100 - (100 / (1 + rs));\n}\n\nfunction calculateSMA(values, period) {\n  if (values.length < period) return null;\n  const slice = values.slice(values.length - period);\n  return slice.reduce((a, b) => a + b, 0) / period;\n}\n\nconst last = allCloses.length - 1;\nconst prev = Math.max(0, allCloses.length - 2);\n\nconst current = { close: allCloses[last], timestamp: newBar.t };\nconst previous = { close: allCloses[prev] };\n\nconst periods = [5, 8, 9, 13, 20, 21, 34, 50, 100, 200];\n\nperiods.forEach(p => {\n  if (allCloses.length >= p) {\n    const emaValues = calculateEMA(allCloses, p);\n    current[`ema${p}`] = emaValues[last];\n    previous[`ema${p}`] = emaValues[prev];\n  }\n});\n\ncurrent.volume = allVolumes[last];\ncurrent.volume_ma20 = calculateSMA(allVolumes, 20);\ncurrent.rsi14 = calculateRSI(allCloses, 14);\n\nreturn {\n  json: {\n    symbol,\n    current,\n    previous,\n    timestamp: newBar.t,\n    lastBar: newBar\n  }\n};"
       },
       "id": "6f003f53-93d8-4d83-aa51-f448e5faa5a1",
       "name": "Calculate EMA/RSI/Volume",
@@ -137,7 +137,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const { symbol, current, previous, skip } = $json;\n\n// Если получили ошибку от предыдущего узла - пропускаем\nif (skip || !current || !previous || !symbol) {\n  // Возвращаем результат для продолжения цикла без сохранения\n  return {\n    json: {\n      skip: true,\n      completed: true\n    }\n  };\n}\n\nlet crossover = 'NONE';\nlet action = 'HOLD';\nlet message = '';\n\n// Golden Cross: EMA9 > EMA21\nif (previous.ema9 && previous.ema21 && current.ema9 && current.ema21) {\n  if (previous.ema9 <= previous.ema21 && current.ema9 > current.ema21) {\n    crossover = 'GOLD_UP';\n    action = 'BUY_SIGNAL';\n    message = `Golden Cross: EMA9=${current.ema9.toFixed(2)} > EMA21=${current.ema21.toFixed(2)}`;\n  } else if (previous.ema9 >= previous.ema21 && current.ema9 < current.ema21) {\n    crossover = 'DEATH_DOWN';\n    action = 'SELL_SIGNAL';\n    message = `Death Cross: EMA9=${current.ema9.toFixed(2)} < EMA21=${current.ema21.toFixed(2)}`;\n  }\n}\n\nreturn {\n  json: {\n    symbol,\n    current,\n    previous,\n    timestamp: $json.timestamp,\n    action,\n    crossover,\n    message,\n    close_price: current.close,\n    ema5: current.ema5,\n    ema8: current.ema8,\n    ema9: current.ema9,\n    ema13: current.ema13,\n    ema20: current.ema20,\n    ema21: current.ema21,\n    ema34: current.ema34,\n    ema50: current.ema50,\n    ema100: current.ema100,\n    ema200: current.ema200,\n    rsi14: current.rsi14,\n    volume: current.volume,\n    volume_ma20: current.volume_ma20,\n    skip: false\n  }\n};"
+        "jsCode": "const { symbol, current, previous } = $json;\n\nif (!current || !previous) {\n  return {\n    json: {\n      symbol,\n      error: 'Missing data',\n      action: 'hold'\n    }\n  };\n}\n\nlet crossover = 'NONE';\nlet action = 'HOLD';\nlet message = '';\n\n// Golden Cross: EMA9 > EMA21\nif (previous.ema9 && previous.ema21 && current.ema9 && current.ema21) {\n  if (previous.ema9 <= previous.ema21 && current.ema9 > current.ema21) {\n    crossover = 'GOLD_UP';\n    action = 'BUY_SIGNAL';\n    message = `Golden Cross: EMA9=${current.ema9.toFixed(2)} > EMA21=${current.ema21.toFixed(2)}`;\n  } else if (previous.ema9 >= previous.ema21 && current.ema9 < current.ema21) {\n    crossover = 'DEATH_DOWN';\n    action = 'SELL_SIGNAL';\n    message = `Death Cross: EMA9=${current.ema9.toFixed(2)} < EMA21=${current.ema21.toFixed(2)}`;\n  }\n}\n\nreturn {\n  json: {\n    symbol,\n    current,\n    previous,\n    timestamp: $json.timestamp,\n    action,\n    crossover,\n    message,\n    close_price: current.close,\n    ema5: current.ema5,\n    ema8: current.ema8,\n    ema9: current.ema9,\n    ema13: current.ema13,\n    ema20: current.ema20,\n    ema21: current.ema21,\n    ema34: current.ema34,\n    ema50: current.ema50,\n    ema100: current.ema100,\n    ema200: current.ema200,\n    rsi14: current.rsi14,\n    volume: current.volume,\n    volume_ma20: current.volume_ma20\n  }\n};"
       },
       "id": "96461d92-7a69-47ba-b171-e2d21fc60094",
       "name": "Detect Crossover",
@@ -151,39 +151,6 @@
     },
     {
       "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict"
-          },
-          "conditions": [
-            {
-              "id": "6f8b4e3a-1a2c-4d5e-8f9a-0b1c2d3e4f5a",
-              "leftValue": "={{ $json.skip }}",
-              "rightValue": false,
-              "operator": {
-                "type": "boolean",
-                "operation": "equals"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "id": "7c9a8b7d-6e5f-4a3b-9c8d-1e2f3a4b5c6d",
-      "name": "Check Skip Flag",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        5264,
-        240
-      ],
-      "notes": "Пропускает записи с ошибками (skip=true), сохраняет только валидные"
-    },
-    {
-      "parameters": {
         "operation": "executeQuery",
         "query": "=INSERT INTO ema_snapshots (timestamp, symbol, close_price, ema5, ema8, ema9, ema13, ema20, ema21, ema34, ema50, ema100, ema200, rsi14, volume, volume_ma20, action, crossover, message)\nVALUES (\n  '{{ $json.timestamp }}',\n  '{{ $json.symbol }}',\n  {{ $json.close_price || 'NULL' }},\n  {{ $json.ema5 || 'NULL' }},\n  {{ $json.ema8 || 'NULL' }},\n  {{ $json.ema9 || 'NULL' }},\n  {{ $json.ema13 || 'NULL' }},\n  {{ $json.ema20 || 'NULL' }},\n  {{ $json.ema21 || 'NULL' }},\n  {{ $json.ema34 || 'NULL' }},\n  {{ $json.ema50 || 'NULL' }},\n  {{ $json.ema100 || 'NULL' }},\n  {{ $json.ema200 || 'NULL' }},\n  {{ $json.rsi14 || 'NULL' }},\n  {{ $json.volume || 'NULL' }},\n  {{ $json.volume_ma20 || 'NULL' }},\n  '{{ $json.action }}',\n  '{{ $json.crossover }}',\n  '{{ $json.message }}'\n);",
         "options": {}
@@ -193,8 +160,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        5456,
-        160
+        5360,
+        256
       ],
       "credentials": {
         "postgres": {
@@ -277,25 +244,7 @@
       "main": [
         [
           {
-            "node": "Check Skip Flag",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Check Skip Flag": {
-      "main": [
-        [
-          {
             "node": "Save to ema_snapshots",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "For Each Symbol",
             "type": "main",
             "index": 0
           }

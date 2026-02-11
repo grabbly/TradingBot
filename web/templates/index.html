@@ -219,6 +219,18 @@
                 <div class="stat-label">Last Update</div>
                 <div class="stat-value" id="lastUpdate">-</div>
             </div>
+            <div class="stat-card">
+                <div class="stat-label">Balance</div>
+                <div class="stat-value" id="balanceValue">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">30D Drawdown</div>
+                <div class="stat-value" id="drawdownValue">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Top Sentiment</div>
+                <div class="stat-value" id="topSentiment">-</div>
+            </div>
         </div>
 
         <div class="chart-container">
@@ -259,6 +271,28 @@
                     }
                 })
                 .catch(err => console.error('Error loading stats:', err));
+
+            // Load summary
+            fetch('/api/summary')
+                .then(r => r.json())
+                .then(summary => {
+                    const balance = summary.balance;
+                    const change = summary.change;
+                    const drawdown = summary.drawdown;
+                    const top = summary.top_sentiment || [];
+
+                    document.getElementById('balanceValue').textContent =
+                        balance != null ? `$${balance.toFixed(2)}` : '-';
+
+                    document.getElementById('drawdownValue').textContent =
+                        drawdown != null ? `${(drawdown * 100).toFixed(2)}%` : '-';
+
+                    document.getElementById('topSentiment').textContent =
+                        top.length > 0
+                            ? top.map(t => `${t.symbol}:${t.score.toFixed(2)}`).join(' ')
+                            : '-';
+                })
+                .catch(err => console.error('Error loading summary:', err));
         }
 
         function autoRefresh() {

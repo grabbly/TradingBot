@@ -1,5 +1,5 @@
 # Phase 2: FinBERT GPU Server Setup Plan
-**Server:** ***REMOVED*** (RTX 3060, 12GB VRAM)  
+**Server:** 192.168.1.3 (RTX 3060, 12GB VRAM)  
 **User:** gabby  
 **Status:** Planning - Nothing installed yet  
 **Date:** 2026-01-08
@@ -27,7 +27,7 @@
 ### Check what's already installed:
 ```bash
 # Connect to server
-ssh gabby@***REMOVED***
+ssh gabby@192.168.1.3
 
 # Check Python version
 python3 --version
@@ -150,8 +150,8 @@ cd ~/tradingbot/finbert_service
 ### 3.2: Transfer files from Mac
 ```bash
 # On Mac
-scp finbert_service.py gabby@***REMOVED***:~/tradingbot/finbert_service/
-scp .env gabby@***REMOVED***:~/tradingbot/finbert_service/
+scp finbert_service.py gabby@192.168.1.3:~/tradingbot/finbert_service/
+scp .env gabby@192.168.1.3:~/tradingbot/finbert_service/
 ```
 
 ### 3.3: Create systemd service (optional - for auto-start)
@@ -189,10 +189,10 @@ sudo systemctl status finbert-api
 ### From Mac:
 ```bash
 # Test health check
-curl http://***REMOVED***:5001/health
+curl http://192.168.1.3:5001/health
 
 # Test sentiment analysis
-curl -X POST http://***REMOVED***:5001/analyze \
+curl -X POST http://192.168.1.3:5001/analyze \
   -H "Content-Type: application/json" \
   -d '{"text": "Apple stock rises on strong earnings"}'
 

@@ -7,7 +7,18 @@ CREATE TABLE IF NOT EXISTS ema_snapshots (
     symbol VARCHAR(20) NOT NULL,
     close_price DECIMAL(12, 4) NOT NULL,
     ema5 DECIMAL(12, 4),
+    ema8 DECIMAL(12, 4),
+    ema9 DECIMAL(12, 4),
+    ema13 DECIMAL(12, 4),
     ema20 DECIMAL(12, 4),
+    ema21 DECIMAL(12, 4),
+    ema34 DECIMAL(12, 4),
+    ema50 DECIMAL(12, 4),
+    ema100 DECIMAL(12, 4),
+    ema200 DECIMAL(12, 4),
+    rsi14 DECIMAL(12, 4),
+    volume DECIMAL(18, 4),
+    volume_ma20 DECIMAL(18, 4),
     action VARCHAR(20),         -- 'hold', 'buy', 'sell', и т.п.
     crossover VARCHAR(10),      -- 'bullish', 'bearish', 'none'
     message TEXT

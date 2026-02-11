@@ -34,7 +34,7 @@ cd /Users/gabby/git/TradingBot
 **Пароль sudo на сервере:** `2356HJK`
 
 Скрипт:
-1. Скопирует все файлы на сервер ***REMOVED***.
+1. Скопирует все файлы на сервер 192.168.1.3.
 2. Создаст venv и установит зависимости.
 3. Настроит systemd service `treddy`.
 4. Настроит nginx для домена `treddy.acebox.eu`.
@@ -43,7 +43,7 @@ cd /Users/gabby/git/TradingBot
 ## Ручная установка (если нужно)
 
 ```bash
-# На сервере ***REMOVED***
+# На сервере 192.168.1.3
 cd /home/gabby/TradingBot/web
 python3 -m venv venv
 source venv/bin/activate
@@ -51,7 +51,7 @@ pip install -r requirements.txt
 
 # Тест локально
 python app.py
-# Открой http://***REMOVED***:5001
+# Открой http://192.168.1.3:5001
 
 # Установка systemd service
 sudo cp treddy.service /etc/systemd/system/
@@ -70,7 +70,7 @@ sudo systemctl reload nginx
 
 Открой в браузере:
 - **http://treddy.acebox.eu** (если DNS настроен)
-- **http://***REMOVED***:5001** (локально на сервере)
+- **http://192.168.1.3:5001** (локально на сервере)
 
 Dashboard:
 - Выбор символа (NVDA, AAPL, и т.д.)
@@ -126,8 +126,8 @@ cd /Users/gabby/git/TradingBot
 Или только код без перезапуска service:
 
 ```bash
-rsync -avz web/ gabby@***REMOVED***:/home/gabby/TradingBot/web/
-ssh gabby@***REMOVED*** "sudo systemctl restart treddy"
+rsync -avz web/ gabby@192.168.1.3:/home/gabby/TradingBot/web/
+ssh gabby@192.168.1.3 "sudo systemctl restart treddy"
 ```
 
 ## Требования
@@ -135,4 +135,4 @@ ssh gabby@***REMOVED*** "sudo systemctl restart treddy"
 - Python 3.12+
 - PostgreSQL с таблицей `ema_snapshots`
 - Nginx
-- Домен `treddy.acebox.eu` должен быть направлен на ***REMOVED***
+- Домен `treddy.acebox.eu` должен быть направлен на 192.168.1.3
