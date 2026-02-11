@@ -1,111 +1,128 @@
 # EMA Crossover Trading Bot
 
-Автоматизированный свинг-трейдинг бот на базе стратегии Dual EMA Crossover с подтверждением входа.
+Automated swing trading bot based on Dual EMA Crossover strategy with entry confirmation.
 
-## 📊 Стратегия
+## 📊 Strategy
 
-- **Индикаторы**: EMA 5 и EMA 20
-- **Вход**: Bullish crossover + подтверждение роста на X%
-- **Выход**: Bearish crossover
-- **Риск**: Stop-loss 2.5%, одна позиция на инструмент
+- **Indicators**: EMA 5 and EMA 20
+- **Entry**: Bullish crossover + X% growth confirmation
+- **Exit**: Bearish crossover
+- **Risk**: 2.5% stop-loss, one position per instrument
 
-## 🏗️ Структура проекта
+## 🏗️ Project Structure
 
 ```
 TradingBot/
 ├── config/
-│   └── settings.json       # Параметры стратегии
+│   └── settings.json       # Strategy parameters
 ├── src/
-│   ├── ema.js              # Расчёт EMA
-│   └── signals.js          # Логика сигналов
+│   ├── ema.js              # EMA calculation
+│   └── signals.js          # Signal logic
 ├── db/
-│   ├── schema.sql          # Схема PostgreSQL
-│   ├── migrations/         # Миграции БД
-│   │   ├── 000_init_schema_migrations.sql
-│   │   └── 001_add_ema_columns.sql
-│   ├── apply_migrations.sh # Скрипт применения миграций
-│   └── MIGRATIONS.md       # Руководство по миграциям
-├── n8n/
-│   ├── workflows/
-│   │   ├── ema-crossover-bot.json
-│   │   ├── ema-logger.json
-│   │   └── db-migrate.json    # Workflow для миграций
+│   ├── schema.sql          # PostgreSQL schema
+│   ├── migrations/         # DB migrations
+│   ├── apply_migrations.sh # Migration script
+│   └── MIGRATIONS.md       # Migration guide
+├── strategy_v1/
+│   ├── workflows/          # n8n workflow files
 │   └── CREDENTIALS_SETUP.md
-└── .docs/
-    └── task.txt            # Спецификация
+└── scripts/
+    ├── backtest_*.py       # Backtesting tools
+    └── load_historical_data.py
 ```
 
-## 🚀 Быстрый старт
+## 🚀 Quick Start
 
-### 1. Настрой Alpaca
-1. Зарегистрируйся на [alpaca.markets](https://alpaca.markets)
-2. Получи API ключи (Paper Trading)
-3. Следуй инструкциям в [CREDENTIALS_SETUP.md](n8n/CREDENTIALS_SETUP.md)
+### 1. Setup Alpaca
 
-### 2. Импортируй workflow в n8n
-1. Открой n8n
+1. Register at [alpaca.markets](https://alpaca.markets)
+2. Get API keys (Paper Trading)
+3. Follow instructions in `strategy_v1/CREDENTIALS_SETUP.md`
+
+### 2. Configure Environment
+
+```bash
+# Copy environment template
+cp .env.example .env
+
+# Edit .env and add your credentials
+nano .env
+```
+
+### 3. Import workflow to n8n
+
+1. Open n8n
 2. Settings → Import from File
-3. Выбери `n8n/workflows/ema-crossover-bot.json`
-4. Настрой credentials и параметры
+3. Select workflow file from `strategy_v1/workflows/`
+4. Configure credentials and parameters
 
-### 3. Запусти
-1. Активируй workflow
-2. Бот начнёт анализировать рынок каждую минуту
+### 4. Run
 
-## ⚙️ Конфигурация
+Activate workflow - bot starts analyzing market automatically
 
-Отредактируй `config/settings.json`:
+## ⚙️ Configuration
+
+Edit `config/settings.json`:
 
 ```json
 {
   "strategy": {
-    "symbol": "NVDA",           // Торгуемый актив
-    "timeframe": "1Hour",       // Таймфрейм
-    "confirmationPercent": 0.75 // % подтверждения
+    "symbol": "NVDA",
+    "timeframe": "1Hour",
+    "confirmationPercent": 0.75
   },
   "riskManagement": {
-    "stopLossPercent": 2.5,     // Stop-loss %
-    "positionSize": 10          // Количество акций
+    "stopLossPercent": 2.5,
+    "positionSize": 10
   }
 }
 ```
 
-## 📱 Уведомления и логирование
+## 📱 Notifications and Logging
 
-- **Telegram**: Алерты о сигналах и сделках
-- **PostgreSQL**: Лог всех событий + статистика
+- **Telegram**: Alerts about signals and trades
+- **PostgreSQL**: Event log + statistics
 
-## 🗄️ Миграции базы данных
-
-Проект использует систему миграций для управления схемой БД:
+## 🗄️ Database Migrations
 
 ```bash
-# Применить все миграции через скрипт
+# Apply all migrations
 ./db/apply_migrations.sh
-
-# Или через n8n workflow
-# Импортируй db-migrate.json и запусти вручную
 ```
 
-Подробнее: [db/MIGRATIONS.md](db/MIGRATIONS.md)
+See `db/MIGRATIONS.md` for details
 
-## ⚠️ Важно
+## ⚠️ Important
 
-1. **Начни с Paper Trading** — проверь логику без риска
-2. **Бэктест** — протестируй на исторических данных
-3. **Мониторь** — регулярно проверяй работу бота
-4. **Не используй на реале** пока не убедишься в прибыльности
+- **Start with Paper Trading** — test without risk
+- **Backtest** — test on historical data (`scripts/backtest_*.py`)
+- **Monitor** — regularly check bot performance
+- Don't use in live trading until verified
 
 ## 📈 Alpaca API Endpoints
 
-| Действие | Метод | URL |
-|----------|-------|-----|
-| Аккаунт | GET | `/v2/account` |
-| Позиции | GET | `/v2/positions` |
-| Создать ордер | POST | `/v2/orders` |
-| Закрыть позицию | DELETE | `/v2/positions/{symbol}` |
-| OHLC данные | GET | `/v2/stocks/{symbol}/bars` |
+| Action | Method | URL |
+|--------|--------|-----|
+| Account | GET | `/v2/account` |
+| Positions | GET | `/v2/positions` |
+| Create Order | POST | `/v2/orders` |
+| Close Position | DELETE | `/v2/positions/{symbol}` |
+| OHLC Data | GET | `/v2/stocks/{symbol}/bars` |
 
-## 📄 Лицензия
+## 🔒 Security
+
+- **Never commit `.env`** - contains sensitive credentials
+- Store all API keys in environment variables
+- See `SECURITY_CHECKLIST.md` for guidelines
+- See `GIT_CLEANUP_GUIDE.md` to remove secrets from history
+
+## 📚 Documentation
+
+- `ARCHITECTURE.md` - System architecture
+- `V2_SYSTEM_OVERVIEW.md` - Phase 2 features
+- `GIT_CLEANUP_GUIDE.md` - Git security guide
+- `CLEANUP_SUMMARY.md` - Security cleanup summary
+
+## 📄 License
 
 MIT
