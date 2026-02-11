@@ -1,30 +1,30 @@
 /**
  * EMA (Exponential Moving Average) Calculator
- * Для использования в n8n Function Node
+ * For use in n8n Function Node
  */
 
 /**
- * Рассчитывает EMA для массива цен
- * @param {number[]} prices - Массив цен закрытия (от старых к новым)
- * @param {number} period - Период EMA
- * @returns {number[]} - Массив значений EMA
+ * Calculates EMA for an array of prices
+ * @param {number[]} prices - Array of closing prices (from old to new)
+ * @param {number} period - EMA period
+ * @returns {number[]} - Array of EMA values
  */
 function calculateEMA(prices, period) {
   if (prices.length < period) {
-    throw new Error(`Недостаточно данных: нужно минимум ${period} свечей`);
+    throw new Error(`Insufficient data: need at least ${period} candles`);
   }
 
   const ema = [];
   const multiplier = 2 / (period + 1);
 
-  // Первое значение EMA = SMA за первые N периодов
+  // First EMA value = SMA for first N periods
   let sum = 0;
   for (let i = 0; i < period; i++) {
     sum += prices[i];
   }
   ema[period - 1] = sum / period;
 
-  // Остальные значения EMA
+  // Remaining EMA values
   for (let i = period; i < prices.length; i++) {
     ema[i] = (prices[i] - ema[i - 1]) * multiplier + ema[i - 1];
   }
@@ -33,12 +33,12 @@ function calculateEMA(prices, period) {
 }
 
 /**
- * Рассчитывает текущие значения EMA 5 и EMA 20
- * @param {Object[]} bars - OHLC данные от Alpaca
- * @returns {Object} - Текущие и предыдущие значения EMA
+ * Calculates current EMA 5 and EMA 20 values
+ * @param {Object[]} bars - OHLC data from Alpaca
+ * @returns {Object} - Current and previous EMA values
  */
 function calculateDualEMA(bars) {
-  // Извлекаем цены закрытия
+  // Extract closing prices
   const closes = bars.map(bar => parseFloat(bar.c));
   
   const ema5 = calculateEMA(closes, 5);

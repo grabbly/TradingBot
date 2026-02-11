@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Скрипт для проверки таблицы positions в PostgreSQL
+# Script to check the positions table in PostgreSQL
 # Connection info: Host 192.168.1.3, Database trading_bot
 
 echo "=== Checking positions table on 192.168.1.3 ==="
